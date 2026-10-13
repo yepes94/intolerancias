@@ -56,9 +56,16 @@ function foodPrompt(description, hasImage, validKeys) {
     "Eres un asistente de diario alimentario personal. NO eres medico y NO diagnosticas. " +
     "Analiza esta comida y responde UNICAMENTE con un objeto JSON, sin nada mas: " +
     "ni saludos, ni explicaciones antes o despues, ni bloques markdown (nada de ```), solo el objeto. " +
-    '{"ingredients": [<claves de: ' + keys + ">], " +
-    '"summary": "<1-2 frases, tono cercano, que vigilar y por que>", ' +
+    "Se conciso: la respuesta completa debe ser corta (menos de ~250 palabras en total). " +
+    'Forma exacta: {"food": "<alimento detectado en 2-5 palabras, ej. pan blanco de molde>", ' +
+    '"components": ["<solo los componentes relevantes que causan intolerancia/alergia, " + ' +
+    'máx. 6, ej. gluten, trigo, fructanos, soja, posible lactosa>"], ' +
+    '"ingredients": [<solo las claves relevantes de: ' + keys + "> que correspondan a esos componentes], " +
+    '"summary": "<1 frase corta, máx. 280 caracteres, tono cercano: que vigilar y por que>", ' +
     '"checkinQuestion": "<pregunta corta tipo como te sientes>"}. ' +
+    "Si es un producto concreto, identifica sus componentes típicos " +
+    "(ej. pan blanco de molde → gluten, trigo, fructanos, soja, posible lactosa) " +
+    "y quédate solo con los relevantes para esta comida. " +
     "Usa comillas dobles y sin comas finales, para que sea JSON.parse valido. " +
     "Comida: " + (description || "(solo foto)") + (hasImage ? " [incluye foto]" : "") +
     "\nRecuerda: anade que es orientativo y no sustituye una prueba medica real."
@@ -132,10 +139,20 @@ function normalizeAnalysis(obj, validKeys) {
   const checkinQuestion = typeof obj.checkinQuestion === "string" ? obj.checkinQuestion.trim()
     : (typeof obj.pregunta === "string" ? obj.pregunta.trim() : "");
   if (!summary && !dedup.length && !checkinQuestion) return null;
+  // Campos aditivos (opcionales): el alimento detectado y sus componentes.
+  // Son informativos: `ingredients` sigue siendo la única lista taxonómica
+  // (la que programa check-ins). Se topan por longitud/cantidad para que la
+  // respuesta quepa holgada en max_tokens. Clientes viejos los ignoran.
+  const food = typeof obj.food === "string" ? obj.food.trim().slice(0, 120) : "";
+  const components = Array.isArray(obj.components)
+    ? obj.components.filter((x) => typeof x === "string").map((x) => x.trim().slice(0, 60)).filter(Boolean).slice(0, 6)
+    : [];
   return {
     ingredients: dedup,
-    summary: summary || "La IA no dio detalles; vigila cómo te sientes en las próximas horas.",
+    summary: summary.length > 280 ? summary.slice(0, 277).trimEnd() + "…" : (summary || "La IA no dio detalles; vigila cómo te sientes en las próximas horas."),
     checkinQuestion: checkinQuestion || "¿Cómo te sientes?",
+    ...(food ? { food } : {}),
+    ...(components.length ? { components } : {}),
   };
 }
 

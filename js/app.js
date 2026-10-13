@@ -190,6 +190,8 @@
         { description: desc, imageDataUrl: draftPhoto },
         settings.keys[prov.id], settings.model, settings);
       box.innerHTML = "<strong>🤖 " + esc(prov.label) + ":</strong> " + esc(out.summary) +
+        (out.food ? "<br><strong>Detectado:</strong> " + esc(out.food) +
+          (out.components && out.components.length ? " (" + esc(out.components.join(", ")) + ")" : "") : "") +
         "<br><strong>Pregunta de seguimiento:</strong> " + esc(out.checkinQuestion || "¿Cómo te sientes?");
       // Fusiona ingredientes detectados por IA en la próxima comida guardada
       box.dataset.ingredients = JSON.stringify(out.ingredients || []);

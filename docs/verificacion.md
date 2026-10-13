@@ -108,6 +108,13 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       y si se cortó por límite lo dice (`max_tokens`/`length`). Foto rota o gigante
       (>4,5 MB) → 400 claro sin llamar al proveedor. Cubierto por `node /tmp/test-analyze2.mjs`
       (8 casos con upstream simulado).
+- [ ] **Prompt conciso + alimento detectado**: el prompt pide respuesta corta
+      (<250 palabras, `summary` ≤280 caracteres, `components` máx. 6) para que quepa
+      holgada en `max_tokens: 1000`. El JSON trae además `food` (alimento detectado,
+      ej. "pan blanco de molde") y `components` (ej. gluten, trigo, fructanos, soja,
+      posible lactosa); `ingredients` sigue siendo solo claves de taxonomía (lo único
+      que programa check-ins). Campos aditivos: clientes sin ellos siguen funcionando.
+      Cubierto por el arnés 2 (casos 9–12).
 - [ ] **Sin clave ni proxy**: en `file://` o `python -m http.server`, Analizar usa el
       **análisis local** y el error es `network` (“sin proxy”), nunca CORS.
 - [ ] **Automático (sin navegador)**: `node --check functions/api/analyze.js` OK +

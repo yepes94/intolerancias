@@ -60,8 +60,11 @@
     return "Eres un asistente de diario alimentario personal. NO eres medico y NO diagnosticas. " +
       "Analiza esta comida y responde UNICAMENTE con un objeto JSON, sin nada mas: " +
       "ni saludos, ni explicaciones antes o despues, ni bloques markdown (nada de ```), solo el objeto. " +
-      'Forma exacta: {"ingredients": [<claves de: ' + keys + ">], " +
-      '"summary": "<1-2 frases, tono cercano, que vigilar y por que>", ' +
+      "Se conciso: la respuesta completa debe ser corta (menos de ~250 palabras en total). " +
+      'Forma exacta: {"food": "<alimento detectado en 2-5 palabras>", ' +
+      '"components": ["<solo los componentes relevantes de intolerancia/alergia, máx. 6>"], ' +
+      '"ingredients": [<solo las claves relevantes de: ' + keys + "> que correspondan a esos componentes], " +
+      '"summary": "<1 frase corta, máx. 280 caracteres, tono cercano, que vigilar y por que>", ' +
       '"checkinQuestion": "<pregunta corta tipo como te sientes>"}. ' +
       "Usa comillas dobles y sin comas finales, para que sea JSON.parse valido. " +
       "Comida: " + (description || "(solo foto)") + (hasImage ? " [incluye foto]" : "") +
