@@ -65,8 +65,8 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 
 - [ ] **Clave inválida**: en Ajustes pega `sk-ant-falsa` → **Probar conexión** →
       mensaje de *clave rechazada* con acción “borra la clave y pégala de nuevo completa”.
-- [ ] **Sin red / CORS**: sirve por `file://` o corta la red → **Analizar con IA** →
-      mensaje de *red o CORS bloqueado* (menciona `http://localhost`), no culpa a la clave.
+- [ ] **Sin red / sin proxy**: sirve por `file://` o corta la red → **Analizar con IA** →
+      mensaje de *sin red o sin proxy /api/analyze* (menciona Pages/wrangler), no culpa a la clave.
 - [ ] **Respuesta rara del modelo**: si la IA responde prosa sin JSON o vacío →
       mensaje de *formato inesperado* con acción “pulsa de nuevo Analizar con IA”
       (reintentar), más el análisis local debajo.
@@ -79,6 +79,37 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       (17 aserciones: 401/429/500, TypeError de red, formato de clave Groq,
       prioridad Claude > Hermes > Groq > Cursor, fallback local, sin exfiltración)
       cargando los `js/` reales del repo.
+
+## 8. Proxy /api/analyze anti-CORS (3 min, con preview o wrangler local)
+
+> El navegador **ya no llama directo** a `api.anthropic.com` / `api.groq.com`
+> (adiós CORS y `anthropic-dangerous-direct-browser-access`): todo pasa por
+> `POST /api/analyze` (mismo origen). La clave BYOK viaja solo en la petición.
+
+- [ ] **Salud de la ruta**: `GET /api/analyze` → 200
+      `{"ok":true,"service":"analyze-proxy","providers":["claude","groq"]}`
+      (en preview `https://<rama>.intolerancias.pages.dev/api/analyze` o en local con
+      `npx -y wrangler pages dev . --port 8788`).
+- [ ] **Clave falsa, sin exponer real**: `POST /api/analyze`
+      `{"provider":"claude","action":"ping","key":"sk-ant-falsa"}` → `ok:false`,
+      `kind:"auth"` (401/403 del proveedor). Repetir con
+      `{"provider":"groq","action":"ping","key":"gsk_falsa"}` → `kind:"auth"`.
+- [ ] **Validación sin red externa**: `POST` sin `key` → 401 `auth`;
+      `provider:"hermes"` → 501 `notimpl`; `provider:"xxx"` → 400.
+      (No tocan al proveedor: verificables sin clave y sin internet del proveedor.)
+- [ ] **Extremo a extremo con BYOK real** (opcional): en la preview, Ajustes →
+      pega tu clave → **Probar conexión** → ✔, y **Analizar con IA** con
+      “pizza con queso y cerveza” → resumen + `lactosa/gluten/alcohol`.
+      DevTools → Network: la única salida es a `/api/analyze` (mismo origen);
+      ni rastro de `api.anthropic.com` en `connect-src`/peticiones.
+- [ ] **Sin clave ni proxy**: en `file://` o `python -m http.server`, Analizar usa el
+      **análisis local** y el error es `network` (“sin proxy”), nunca CORS.
+- [ ] **Automático (sin navegador)**: `node --check functions/api/analyze.js` OK +
+      prueba de validación/privacidad del proxy (ver evidencia del PR: GET salud,
+      401 sin key, 501 hermes, 400 proveedor, y `grep` de que la Function no
+      loguea ni devuelve la key).
+- [ ] **Prod intacta**: `https://intolerancias.pages.dev/` sigue en 200 y este cambio
+      solo **añade** `/api/analyze` sin tocar `/`, `js/*` ni docs existentes.
 
 ## Criterio de aceptación
 

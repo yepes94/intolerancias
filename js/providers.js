@@ -48,21 +48,12 @@
     return h + " h";
   }
 
-  const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
+  const PROXY_URL = "/api/analyze";
 
-  // Groq expone una API compatible con OpenAI (permite llamadas directas desde el navegador).
-  const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
-  const GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
-
-  function claudeHeaders(apiKey) {
-    return {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      // Requerido para llamadas directas desde el navegador (CORS).
-      "anthropic-dangerous-direct-browser-access": "true"
-    };
-  }
+  // Todo el tráfico IA sale por el proxy same-origin de Pages Functions:
+  // el navegador nunca toca api.anthropic.com/api.groq.com (adiós CORS) y
+  // la clave BYOK viaja solo en el cuerpo de la petición (nunca se guarda
+  // en servidor ni en logs; ver functions/api/analyze.js).
 
   function foodPrompt(description, hasImage) {
     const keys = Object.keys(D().ONSET_WINDOWS).join(", ");
@@ -95,18 +86,46 @@
       /failed to fetch|networkerror|load failed|cors|network request failed/i.test(err && err.message || "");
   }
 
-  async function safeFetch(url, opts) {
+  // ---- Proxy /api/analyze (Pages Functions) ----
+  // Unifica ping + analyze de todos los proveedores: el frontend manda
+  // { provider, action, key, … } y el proxy reenvía al proveedor con la
+  // clave BYOK. La respuesta ya trae la taxonomía (kind) del servidor.
+  async function proxyCall(providerId, providerLabel, action, payload) {
+    const validIngredients = Object.keys(D().ONSET_WINDOWS);
     let res;
     try {
-      res = await fetch(url, opts);
+      res = await fetch(PROXY_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          provider: providerId,
+          action,
+          key: payload.apiKey,
+          model: payload.model || D().DEFAULT_MODEL,
+          groqModel: payload.groqModel || D().GROQ_MODEL,
+          description: payload.description || "",
+          imageDataUrl: payload.imageDataUrl || null,
+          validIngredients
+        })
+      });
     } catch (err) {
       throw codedError("network",
-        "No se pudo contactar con el proveedor (red o CORS). " +
-        "Comprueba tu conexión; si usas file:// o una extensión que bloquee, " +
-        "prueba por http://localhost. El análisis local sigue funcionando.");
+        "No se pudo contactar con el proxy /api/analyze (red o la app no está " +
+        "servida desde Pages/wrangler: en file:// o python -m http.server el proxy " +
+        "no existe). El análisis local sigue funcionando.");
     }
-    return res;
+    let body = null;
+    try { body = await res.json(); } catch { body = null; }
+    if (!res.ok || !body || body.ok !== true) {
+      const kind = (body && body.kind) || "unknown";
+      const message = (body && body.message) || `${providerLabel} ${res.status}: ${res.statusText}`;
+      throw codedError(kind, message);
+    }
+    return body.result;
   }
+
+  // Compat: los errores del proxy ya vienen con kind; httpError se conserva
+  // para los tests y como respaldo si el proxy devolviera un HTTP sin JSON.
 
   function httpError(providerLabel, status, bodyText, statusText) {
     const head = (bodyText || "").slice(0, 200) || statusText || ("HTTP " + status);
@@ -263,10 +282,10 @@
     }
     if (err && (err.kind === "network" || isNetworkFailure(err))) {
       return {
-        title: `${label} no responde por red o el navegador bloqueó la llamada (CORS).`,
-        hint: "Acción: comprueba tu conexión, desactiva bloqueadores/VPN para probar, " +
-          "y sirve la app por http://localhost en vez de file://. " +
-          "El análisis local sigue funcionando sin conexión."
+        title: `${label} no responde: sin red o sin proxy /api/analyze.`,
+        hint: "Acción: comprueba tu conexión. El proxy solo existe servido desde " +
+          "Cloudflare Pages o `wrangler pages dev` (en file:// o `python -m http.server` " +
+          "no hay proxy y no hay CORS que temer). El análisis local sigue funcionando sin conexión."
       };
     }
     if (err && err.kind === "badjson") {
@@ -307,53 +326,26 @@
         implemented: true,
         needsVision: true,
 
-        async ping(apiKey, model) {
-          const res = await safeFetch(CLAUDE_URL, {
-            method: "POST",
-            headers: claudeHeaders(apiKey),
-            body: JSON.stringify({
-              model: model || D().DEFAULT_MODEL,
-              max_tokens: 20,
-              messages: [{ role: "user", content: "Responde solo: ok" }]
-            })
+        async ping(apiKey, model, settings) {
+          return proxyCall("claude", "Claude", "ping", {
+            apiKey, model, groqModel: settings && settings.groqModel
           });
-          if (!res.ok) {
-            const t = await res.text().catch(() => "");
-            throw httpError("Claude", res.status, t, res.statusText);
-          }
-          return "ok";
         },
 
-        async analyzeFood({ description, imageDataUrl }, apiKey, model) {
-          const content = [];
-          if (imageDataUrl) {
-            const m = imageDataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
-            if (m) {
-              content.push({
-                type: "image",
-                source: { type: "base64", media_type: m[1], data: m[2] }
-              });
-            }
-          }
-          content.push({ type: "text", text: foodPrompt(description, !!imageDataUrl) });
-          const res = await safeFetch(CLAUDE_URL, {
-            method: "POST",
-            headers: claudeHeaders(apiKey),
-            body: JSON.stringify({
-              model: model || D().DEFAULT_MODEL,
-              max_tokens: 500,
-              messages: [{ role: "user", content }]
-            })
+        async analyzeFood({ description, imageDataUrl }, apiKey, model, settings) {
+          const result = await proxyCall("claude", "Claude", "analyze", {
+            apiKey, model,
+            groqModel: settings && settings.groqModel,
+            description, imageDataUrl
           });
-          if (!res.ok) {
-            const t = await res.text().catch(() => "");
-            throw httpError("Claude", res.status, t, res.statusText);
+          // El proxy ya devuelve { ingredients, summary, checkinQuestion } limpio.
+          if (!result || typeof result.summary !== "string") {
+            throw codedError("badjson",
+              "Claude respondió pero no en el formato esperado. Pulsa de nuevo " +
+              "«Analizar con IA»; el análisis local sigue funcionando.");
           }
-          const data = await res.json();
-          const text = (data.content || []).map((b) => b.text || "").join("");
-          const parsed = parseAnalysisJson(text, "Claude");
-          parsed.summary = (parsed.summary || "") + " " + D().DISCLAIMER;
-          return parsed;
+          result.summary = (result.summary || "") + " " + D().DISCLAIMER;
+          return result;
         }
       },
 
@@ -369,59 +361,28 @@
         implemented: true,
         needsVision: true,
 
-        async ping(apiKey) {
+        async ping(apiKey, _model, settings) {
           const key = (apiKey || "").trim();
           if (!/^gsk_/.test(key)) {
             throw codedError("auth", "Esa clave no parece de Groq (suelen empezar por “gsk_”). Consigue una gratis en console.groq.com/keys.");
           }
-          const res = await safeFetch(GROQ_MODELS_URL, {
-            headers: { authorization: "Bearer " + key }
+          return proxyCall("groq", "Groq", "ping", {
+            apiKey, groqModel: settings && settings.groqModel
           });
-          if (!res.ok) {
-            const t = await res.text().catch(() => "");
-            throw httpError("Groq", res.status, t, res.statusText);
-          }
-          return "ok";
         },
 
         async analyzeFood({ description, imageDataUrl }, apiKey, _model, settings) {
-          const hasImage = !!imageDataUrl;
-          // Con foto se usa el modelo con visión; sin foto, el de texto (configurable en Ajustes).
-          const model = hasImage
-            ? D().GROQ_VISION_MODEL
-            : ((settings && settings.groqModel) || D().GROQ_MODEL);
-          const content = [];
-          if (hasImage) {
-            content.push({ type: "image_url", image_url: { url: imageDataUrl } });
-          }
-          content.push({ type: "text", text: foodPrompt(description, hasImage) });
-          const res = await safeFetch(GROQ_CHAT_URL, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              authorization: "Bearer " + apiKey
-            },
-            body: JSON.stringify({
-              model,
-              max_tokens: 500,
-              temperature: 0.2,
-              response_format: { type: "json_object" },
-              messages: [
-                { role: "system", content: "Respondes SOLO con JSON válido, sin texto adicional." },
-                { role: "user", content }
-              ]
-            })
+          const result = await proxyCall("groq", "Groq", "analyze", {
+            apiKey, groqModel: settings && settings.groqModel,
+            description, imageDataUrl
           });
-          if (!res.ok) {
-            const t = await res.text().catch(() => "");
-            throw httpError("Groq", res.status, t, res.statusText);
+          if (!result || typeof result.summary !== "string") {
+            throw codedError("badjson",
+              "Groq respondió pero no en el formato esperado. Pulsa de nuevo " +
+              "«Analizar con IA»; el análisis local sigue funcionando.");
           }
-          const data = await res.json();
-          const text = (data.choices && data.choices[0] && data.choices[0].message &&
-            data.choices[0].message.content) || "";
-          const parsed = parseAnalysisJson(text, "Groq");
-          parsed.summary = (parsed.summary || "") + " " + D().DISCLAIMER;
-          return parsed;
+          result.summary = (result.summary || "") + " " + D().DISCLAIMER;
+          return result;
         }
       },
       cursor: {

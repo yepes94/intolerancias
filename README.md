@@ -53,12 +53,15 @@ index.html          UI + pestañas (Registrar · Timeline · Resumen · Ajustes)
 styles.css          estilos mobile-first, tema claro/oscuro automático, sin dependencias
 js/data.js          ventanas de onset, síntomas, keywords, disclaimer
 js/store.js         localStorage + IndexedDB + compresión de fotos
-js/providers.js     abstracción BYOK (Claude y Groq reales, resto stubs)
+js/providers.js     abstracción BYOK vía proxy /api/analyze (Claude y Groq reales, resto stubs)
 js/app.js           UI, recordatorios, timeline, resumen
+functions/api/analyze.js  proxy BYOK anti-CORS en Pages Functions (la key solo transita)
+docs/cloudflare.md  despliegue Pages + proxy BYOK
 docs/verificacion.md  plan de verificación manual
 ```
 
 ## Privacidad
 
-- Sin backend: la única salida de red es la llamada directa al proveedor de IA **que tú elijas**.
+- Proxy same-origin `/api/analyze` (Pages Functions): el navegador nunca llama directo
+  al proveedor (adiós CORS); la clave BYOK viaja solo en la petición, sin guardarse ni loguearse.
 - Las claves nunca se commitean: `git grep -i "sk-ant"` debe devolver vacío siempre.
