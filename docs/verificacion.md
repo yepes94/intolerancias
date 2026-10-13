@@ -102,6 +102,25 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       “pizza con queso y cerveza” → resumen + `lactosa/gluten/alcohol`.
       DevTools → Network: la única salida es a `/api/analyze` (mismo origen);
       ni rastro de `api.anthropic.com` en `connect-src`/peticiones.
+- [ ] **Respuesta vacía con diagnóstico**: si el proveedor devuelve 200 sin texto
+      aprovechable, el error ya no es genérico: incluye `stop=`/`finish=`, tipos de
+      bloque y uso (p. ej. `respuesta vacía (stop=end_turn, bloques=[ninguno], uso=…)`),
+      y si se cortó por límite lo dice (`max_tokens`/`length`). Foto rota o gigante
+      (>4,5 MB) → 400 claro sin llamar al proveedor. Cubierto por `node /tmp/test-analyze2.mjs`
+      (8 casos con upstream simulado).
+- [ ] **Prompt conciso + alimento detectado**: el prompt pide respuesta corta
+      (<250 palabras, `summary` ≤280 caracteres, `components` máx. 6) para que quepa
+      holgada en `max_tokens: 1000`. El JSON trae además `food` (alimento detectado,
+      ej. "pan blanco de molde") y `components` (ej. gluten, trigo, fructanos, soja,
+      posible lactosa); `ingredients` sigue siendo solo claves de taxonomía (lo único
+      que programa check-ins). Campos aditivos: clientes sin ellos siguen funcionando.
+      Cubierto por el arnés 2 (casos 9–12).
+- [ ] **El análisis no se pierde**: tras **Analizar con IA**, guarda la comida →
+      el timeline muestra el bloque 🤖 (proveedor + alimento + componentes + resumen)
+      junto a tu descripción (que no se toca). Recarga: sigue ahí (va en la entrada,
+      en localStorage). **✏️ Análisis** lo edita (alimento/componentes/resumen),
+      **Quitar IA** lo borra sin tocar tu texto. Cubierto por `node /tmp/test-analysis-persist.mjs`
+      (4 casos: persiste tras recarga, descripción intacta, retrocompat, export).
 - [ ] **Sin clave ni proxy**: en `file://` o `python -m http.server`, Analizar usa el
       **análisis local** y el error es `network` (“sin proxy”), nunca CORS.
 - [ ] **Automático (sin navegador)**: `node --check functions/api/analyze.js` OK +

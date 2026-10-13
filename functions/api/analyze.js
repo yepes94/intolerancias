@@ -56,9 +56,16 @@ function foodPrompt(description, hasImage, validKeys) {
     "Eres un asistente de diario alimentario personal. NO eres medico y NO diagnosticas. " +
     "Analiza esta comida y responde UNICAMENTE con un objeto JSON, sin nada mas: " +
     "ni saludos, ni explicaciones antes o despues, ni bloques markdown (nada de ```), solo el objeto. " +
-    '{"ingredients": [<claves de: ' + keys + ">], " +
-    '"summary": "<1-2 frases, tono cercano, que vigilar y por que>", ' +
+    "Se conciso: la respuesta completa debe ser corta (menos de ~250 palabras en total). " +
+    'Forma exacta: {"food": "<alimento detectado en 2-5 palabras, ej. pan blanco de molde>", ' +
+    '"components": ["<solo los componentes relevantes que causan intolerancia/alergia, " + ' +
+    'máx. 6, ej. gluten, trigo, fructanos, soja, posible lactosa>"], ' +
+    '"ingredients": [<solo las claves relevantes de: ' + keys + "> que correspondan a esos componentes], " +
+    '"summary": "<1 frase corta, máx. 280 caracteres, tono cercano: que vigilar y por que>", ' +
     '"checkinQuestion": "<pregunta corta tipo como te sientes>"}. ' +
+    "Si es un producto concreto, identifica sus componentes típicos " +
+    "(ej. pan blanco de molde → gluten, trigo, fructanos, soja, posible lactosa) " +
+    "y quédate solo con los relevantes para esta comida. " +
     "Usa comillas dobles y sin comas finales, para que sea JSON.parse valido. " +
     "Comida: " + (description || "(solo foto)") + (hasImage ? " [incluye foto]" : "") +
     "\nRecuerda: anade que es orientativo y no sustituye una prueba medica real."
@@ -132,17 +139,31 @@ function normalizeAnalysis(obj, validKeys) {
   const checkinQuestion = typeof obj.checkinQuestion === "string" ? obj.checkinQuestion.trim()
     : (typeof obj.pregunta === "string" ? obj.pregunta.trim() : "");
   if (!summary && !dedup.length && !checkinQuestion) return null;
+  // Campos aditivos (opcionales): el alimento detectado y sus componentes.
+  // Son informativos: `ingredients` sigue siendo la única lista taxonómica
+  // (la que programa check-ins). Se topan por longitud/cantidad para que la
+  // respuesta quepa holgada en max_tokens. Clientes viejos los ignoran.
+  const food = typeof obj.food === "string" ? obj.food.trim().slice(0, 120) : "";
+  const components = Array.isArray(obj.components)
+    ? obj.components.filter((x) => typeof x === "string").map((x) => x.trim().slice(0, 60)).filter(Boolean).slice(0, 6)
+    : [];
   return {
     ingredients: dedup,
-    summary: summary || "La IA no dio detalles; vigila cómo te sientes en las próximas horas.",
+    summary: summary.length > 280 ? summary.slice(0, 277).trimEnd() + "…" : (summary || "La IA no dio detalles; vigila cómo te sientes en las próximas horas."),
     checkinQuestion: checkinQuestion || "¿Cómo te sientes?",
+    ...(food ? { food } : {}),
+    ...(components.length ? { components } : {}),
   };
 }
 
-function parseAnalysisJson(text, providerLabel, validKeys) {
+function parseAnalysisJson(text, providerLabel, validKeys, diag) {
   const raw = String(text || "");
+  const extra = diag ? ` (${diag})` : "";
   if (!raw.trim()) {
-    return { error: { kind: "badjson", message: `${providerLabel} devolvió una respuesta vacía.` } };
+    const cut = /max_tokens|length/i.test(diag || "")
+      ? " Se cortó por límite de longitud: pulsa de nuevo."
+      : "";
+    return { error: { kind: "badjson", message: `${providerLabel} devolvió una respuesta vacía${extra}.${cut}` } };
   }
   const defenced = stripFences(raw);
   let obj = tryParseOne(defenced.trim());
@@ -154,9 +175,59 @@ function parseAnalysisJson(text, providerLabel, validKeys) {
   }
   const norm = obj && normalizeAnalysis(obj, validKeys);
   if (!norm) {
-    return { error: { kind: "badjson", message: `${providerLabel} respondió pero no en el formato esperado.` } };
+    const cut = /max_tokens|length/i.test(diag || "")
+      ? " Se cortó por límite de longitud: pulsa de nuevo."
+      : "";
+    return { error: { kind: "badjson", message: `${providerLabel} respondió pero no en el formato esperado${extra}.${cut}` } };
   }
   return { result: norm };
+}
+
+// Diagnóstico sin contenido sensible: stop reason, tipos de bloque y uso.
+// Sirve para distinguir "modelo mudo" de "respuesta cortada" sin guardar nada.
+function diagClaude(data) {
+  const blocks = Array.isArray(data.content) ? data.content.map((b) => (b && b.type) || "?").slice(0, 8) : [];
+  const stop = data.stop_reason || "?";
+  const use = data.usage ? `${data.usage.input_tokens || 0}→${data.usage.output_tokens || 0}` : "?";
+  return `stop=${stop}, bloques=[${blocks.join(",") || "ninguno"}], uso=${use}`;
+}
+
+function diagGroq(data) {
+  const c = data.choices && data.choices[0];
+  const finish = (c && c.finish_reason) || "?";
+  const use = data.usage ? `${data.usage.prompt_tokens || 0}→${data.usage.completion_tokens || 0}` : "?";
+  return `finish=${finish}, uso=${use}`;
+}
+
+// Lee el JSON del proveedor exigiendo cuerpo JSON real: un 200 no-JSON antes
+// se tragaba en silencio y acababa en "respuesta vacía" sin explicación.
+async function readUpstreamJson(res, providerLabel) {
+  const ctype = res.headers.get("content-type") || "";
+  const text = await res.text().catch(() => "");
+  if (!/json/i.test(ctype)) {
+    return { error: { kind: "badjson", message: `${providerLabel} devolvió un 200 no-JSON (${(ctype || "sin content-type").slice(0, 60)}).` } };
+  }
+  try {
+    return { data: JSON.parse(text) };
+  } catch {
+    return { error: { kind: "badjson", message: `${providerLabel} devolvió un JSON ilegible (${text.length} caracteres).` } };
+  }
+}
+
+// Valida la foto ANTES de reenviarla: un dataURL roto o gigante provocaba
+// respuestas de error/vacías difíciles de atribuir. Límite ~4,5 MB decodificados
+// (Anthropic admite 5 MB por imagen).
+function parseImageDataUrl(s) {
+  if (s == null || s === "") return { none: true };
+  const m = String(s).match(/^data:(image\/[\w+.-]+);base64,([A-Za-z0-9+/=]+)$/);
+  if (!m || !m[2]) {
+    return { error: "La foto no llegó al proxy en formato válido. Reintenta; sin foto también funciona." };
+  }
+  const bytes = Math.floor(m[2].length * 3 / 4);
+  if (bytes > 4.5 * 1024 * 1024) {
+    return { error: "La foto es demasiado grande para el proveedor. Prueba sin foto o con una imagen menor." };
+  }
+  return { mediaType: m[1].toLowerCase(), data: m[2] };
 }
 
 // ---- Respuestas ----
@@ -201,9 +272,11 @@ function upstreamError(providerLabel, status, bodyText, statusText) {
 
 // ---- Proveedores (lado servidor) ----
 async function claudeCall({ action, key, model, description, imageDataUrl, validKeys }) {
+  const img = parseImageDataUrl(imageDataUrl);
+  if (img.error) return fail("badrequest", img.error, 400);
   const body = action === "ping"
     ? { model: model || DEFAULT_CLAUDE_MODEL, max_tokens: 20, messages: [{ role: "user", content: "Responde solo: ok" }] }
-    : { model: model || DEFAULT_CLAUDE_MODEL, max_tokens: 500, messages: [{ role: "user", content: claudeContent(description, imageDataUrl) }] };
+    : { model: model || DEFAULT_CLAUDE_MODEL, max_tokens: 1000, messages: [{ role: "user", content: claudeContent(description, img) }] };
   let res;
   try {
     res = await fetch(CLAUDE_URL, {
@@ -223,20 +296,20 @@ async function claudeCall({ action, key, model, description, imageDataUrl, valid
     return upstreamError("Claude", res.status, t, res.statusText);
   }
   if (action === "ping") return json({ ok: true, provider: "claude", action: "ping", result: "ok" });
-  const data = await res.json().catch(() => ({}));
-  const text = (data.content || []).map((b) => b.text || "").join("");
-  const parsed = parseAnalysisJson(text, "Claude", validKeys);
+  const read = await readUpstreamJson(res, "Claude");
+  if (read.error) return fail("badjson", read.error.message + " Pulsa de nuevo «Analizar con IA».", 502);
+  const text = (read.data.content || []).map((b) => b.text || "").join("");
+  const parsed = parseAnalysisJson(text, "Claude", validKeys, diagClaude(read.data));
   if (parsed.error) return fail("badjson", parsed.error.message + " Pulsa de nuevo «Analizar con IA».", 502);
   return json({ ok: true, provider: "claude", action: "analyze", result: parsed.result });
 }
 
-function claudeContent(description, imageDataUrl) {
+function claudeContent(description, img) {
   const content = [];
-  if (imageDataUrl) {
-    const m = String(imageDataUrl).match(/^data:(image\/\w+);base64,(.+)$/);
-    if (m) content.push({ type: "image", source: { type: "base64", media_type: m[1], data: m[2] } });
+  if (img && !img.none) {
+    content.push({ type: "image", source: { type: "base64", media_type: img.mediaType, data: img.data } });
   }
-  content.push({ type: "text", text: foodPrompt(description, !!imageDataUrl) });
+  content.push({ type: "text", text: foodPrompt(description, !!(img && !img.none)) });
   return content;
 }
 
@@ -255,6 +328,8 @@ async function groqCall({ action, key, groqModel, description, imageDataUrl, val
     return json({ ok: true, provider: "groq", action: "ping", result: "ok" });
   }
   const hasImage = !!imageDataUrl;
+  const img = parseImageDataUrl(imageDataUrl);
+  if (img.error) return fail("badrequest", img.error, 400);
   const model = hasImage ? DEFAULT_GROQ_VISION_MODEL : (groqModel || DEFAULT_GROQ_MODEL);
   const content = [];
   if (hasImage) content.push({ type: "image_url", image_url: { url: imageDataUrl } });
@@ -266,7 +341,7 @@ async function groqCall({ action, key, groqModel, description, imageDataUrl, val
       headers: { "content-type": "application/json", authorization: "Bearer " + key },
       body: JSON.stringify({
         model,
-        max_tokens: 500,
+        max_tokens: 1000,
         temperature: 0.2,
         response_format: { type: "json_object" },
         messages: [
@@ -282,9 +357,10 @@ async function groqCall({ action, key, groqModel, description, imageDataUrl, val
     const t = await res.text().catch(() => "");
     return upstreamError("Groq", res.status, t, res.statusText);
   }
-  const data = await res.json().catch(() => ({}));
-  const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "";
-  const parsed = parseAnalysisJson(text, "Groq", validKeys);
+  const data = await readUpstreamJson(res, "Groq");
+  if (data.error) return fail("badjson", data.error.message + " Pulsa de nuevo «Analizar con IA».", 502);
+  const text = (data.data.choices && data.data.choices[0] && data.data.choices[0].message && data.data.choices[0].message.content) || "";
+  const parsed = parseAnalysisJson(text, "Groq", validKeys, diagGroq(data.data));
   if (parsed.error) return fail("badjson", parsed.error.message + " Pulsa de nuevo «Analizar con IA».", 502);
   return json({ ok: true, provider: "groq", action: "analyze", result: parsed.result });
 }

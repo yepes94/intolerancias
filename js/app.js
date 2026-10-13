@@ -101,7 +101,24 @@
     let iaIds = [];
     try { iaIds = JSON.parse($("analysisResult").dataset.ingredients || "[]"); }
     catch { iaIds = []; }
+    // Respuesta completa de la IA: se guarda APARTE, sin pisar la descripción.
+    let analysis = null;
+    try {
+      const raw = JSON.parse($("analysisResult").dataset.analysis || "null");
+      if (raw && typeof raw.summary === "string" && raw.summary) {
+        analysis = {
+          provider: String(raw.provider || ""), label: String(raw.label || "IA"),
+          at: Number(raw.at) || Date.now(),
+          food: String(raw.food || "").slice(0, 120),
+          components: Array.isArray(raw.components)
+            ? raw.components.filter((x) => typeof x === "string").map((x) => x.slice(0, 60)).slice(0, 6) : [],
+          summary: String(raw.summary).slice(0, 2000),
+          checkinQuestion: String(raw.checkinQuestion || "").slice(0, 280)
+        };
+      }
+    } catch { analysis = null; }
     $("analysisResult").dataset.ingredients = "";
+    $("analysisResult").dataset.analysis = "";
     const meal = {
       id: S.uid(),
       createdAt: Date.now(),
@@ -109,7 +126,7 @@
       feeling0: activeMealFeeling,
       ingredients: local.ingredients.map((id) => ({ id, source: "local" })),
       thumb: draftThumb || null,
-      analysis: null
+      analysis
     };
     for (const id of iaIds) {
       if (D.ONSET_WINDOWS[id] && !meal.ingredients.some((i) => i.id === id)) {
@@ -190,9 +207,17 @@
         { description: desc, imageDataUrl: draftPhoto },
         settings.keys[prov.id], settings.model, settings);
       box.innerHTML = "<strong>🤖 " + esc(prov.label) + ":</strong> " + esc(out.summary) +
+        (out.food ? "<br><strong>Detectado:</strong> " + esc(out.food) +
+          (out.components && out.components.length ? " (" + esc(out.components.join(", ")) + ")" : "") : "") +
         "<br><strong>Pregunta de seguimiento:</strong> " + esc(out.checkinQuestion || "¿Cómo te sientes?");
       // Fusiona ingredientes detectados por IA en la próxima comida guardada
       box.dataset.ingredients = JSON.stringify(out.ingredients || []);
+      // Guarda la respuesta completa para persistirla con la comida (no se pierde).
+      box.dataset.analysis = JSON.stringify({
+        provider: prov.id, label: prov.label, at: Date.now(),
+        food: out.food || "", components: out.components || [],
+        summary: out.summary || "", checkinQuestion: out.checkinQuestion || ""
+      });
     } catch (err) {
       const info = P.describeError(err, prov.label);
       const local = P.localAnalyze(desc);
@@ -201,6 +226,7 @@
         "<br><br><strong>Análisis local (sin IA, sigue funcionando):</strong> " + esc(local.summary);
       // El fallback local también deja sus ingredientes listos para guardar.
       box.dataset.ingredients = JSON.stringify(local.ingredients || []);
+      box.dataset.analysis = "";
     }
   });
 
@@ -372,6 +398,7 @@
         "<time datetime='" + new Date(m.createdAt).toISOString() + "'>" + fmtDT(m.createdAt) + "</time></div></header>" +
         "<p class='meal-feeling'>Al comer: " + face + " <span class='score'>" + m.feeling0 + "/5</span></p>" +
         (ings ? "<div class='pills'>" + ings + "</div>" : "") +
+        (m.analysis ? analysisHtml(m.analysis) : "") +
         "<div class='follow'>" +
         (follows.length
           ? "<ul class='follow-list'>" + follows.map((c) => "<li>✔ <time>" + fmtDT(c.doneAt) + "</time> → <strong class='score'>" + c.feeling + "/5</strong> " +
@@ -393,6 +420,19 @@
         persist(); renderTimeline(); renderUpcoming(); renderSummary();
       });
       row.append(b1, b2);
+      if (m.analysis) {
+        const b3 = document.createElement("button");
+        b3.className = "btn small ghost"; b3.textContent = "✏️ Análisis";
+        b3.addEventListener("click", () => openAnalysisEditor(card, m));
+        const b4 = document.createElement("button");
+        b4.className = "btn small ghost"; b4.textContent = "Quitar IA";
+        b4.addEventListener("click", () => {
+          if (!confirm("¿Quitar el análisis IA guardado? (tu descripción no se toca)")) return;
+          m.analysis = null;
+          persist(); renderTimeline(); renderUpcoming();
+        });
+        row.append(b3, b4);
+      }
       card.appendChild(row);
       wrap.appendChild(card);
       const img = card.querySelector("img[data-full]");
@@ -405,6 +445,39 @@
         });
       }
     }
+  }
+
+  // ---------- análisis IA persistido (no pisa la descripción) ----------
+  function analysisHtml(a) {
+    const head = (a.food ? "<strong>" + esc(a.food) + "</strong>" : "Análisis IA") +
+      ((a.components && a.components.length) ? " <span class='hint'>(" + esc(a.components.join(", ")) + ")</span>" : "");
+    return "<div class='ai-analysis'><p>🤖 " + esc(a.label || "IA") + ": " + head +
+      "<br>" + esc(a.summary || "") + "</p></div>";
+  }
+
+  function openAnalysisEditor(card, meal) {
+    const box = card.querySelector(".ai-analysis");
+    const a = meal.analysis;
+    box.innerHTML =
+      "<label class='field'><span>Alimento detectado</span>" +
+      "<input type='text' data-f='food' value='" + esc(a.food || "") + "' maxlength='120' /></label>" +
+      "<label class='field'><span>Componentes <small>(separados por comas)</small></span>" +
+      "<input type='text' data-f='components' value='" + esc((a.components || []).join(", ")) + "' /></label>" +
+      "<label class='field'><span>Resumen</span>" +
+      "<textarea data-f='summary' rows='2' maxlength='2000'>" + esc(a.summary || "") + "</textarea></label>" +
+      "<div class='row'><button class='btn small primary' data-act='save'>Guardar</button>" +
+      "<button class='btn small ghost' data-act='cancel'>Cancelar</button></div>";
+    box.querySelector("[data-act='save']").addEventListener("click", () => {
+      meal.analysis = {
+        ...a,
+        food: box.querySelector("[data-f='food']").value.trim().slice(0, 120),
+        components: box.querySelector("[data-f='components']").value.split(",")
+          .map((x) => x.trim().slice(0, 60)).filter(Boolean).slice(0, 6),
+        summary: box.querySelector("[data-f='summary']").value.trim().slice(0, 2000)
+      };
+      persist(); renderTimeline(); renderUpcoming(); toast("Análisis actualizado");
+    });
+    box.querySelector("[data-act='cancel']").addEventListener("click", renderTimeline);
   }
 
   // ---------- resumen ----------
