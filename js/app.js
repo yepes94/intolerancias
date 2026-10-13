@@ -1,4 +1,4 @@
-/* Intolerancias · js/app.js — UI + recordatorios + resumen local. */
+/* Intolerancias · js/app.js — UI + diario de síntomas + recordatorio + resumen local. */
 (function () {
   "use strict";
 
@@ -6,6 +6,7 @@
   const P = window.IntolProviders;
   const D = window.IntolData;
   const Diet = window.IntolDiet;
+  const Diary = window.IntolDiary;
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s)
@@ -13,17 +14,23 @@
 
   // ---------- estado ----------
   let meals = S.getMeals();
-  let checkins = S.getCheckins();
+  let diary = S.getDiary();
   let diets = S.getDiets();
   let settings = S.getSettings();
+  // Los check-ins respondidos del sistema anterior pasan al diario como históricos
+  // (una sola vez; la clave antigua no se borra).
+  if (!S.diaryMigrated()) {
+    diary = Diary.mergeLegacy(diary, S.getCheckins());
+    S.saveDiary(diary);
+    S.setDiaryMigrated();
+  }
   let draftPhoto = null;      // dataURL comprimida (full) pendiente de guardar
   let draftThumb = null;
   let activeMealFeeling = 3;
-  let modalFeeling = 3;
-  let modalCheckinId = null;  // check-in programado que se está respondiendo
-  let modalMealId = null;
-  let modalDietId = null;
-  let modalSymptoms = new Set();
+  let diaryLevel = null;
+  let diaryDietId = null;
+  const analyzing = new Set();
+  const FACES = ["", "😖", "🙁", "😐", "🙂", "😄"];
 
   // ---------- util ----------
   function toast(msg, ms) {
@@ -36,16 +43,13 @@
   function fmtDT(ts) {
     return new Date(ts).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   }
-  function fmtIn(ms) {
-    if (ms <= 0) return "ahora";
-    const m = Math.round(ms / 60000);
-    if (m < 60) return "en " + m + " min";
-    const h = Math.floor(m / 60);
-    if (h < 24) return "en " + h + " h" + (m % 60 ? " " + (m % 60) + " min" : "");
-    return "en " + Math.floor(h / 24) + " d";
-  }
-  function persist() { S.saveMeals(meals); S.saveCheckins(checkins); }
+  function persist() { S.saveMeals(meals); S.saveDiary(diary); }
   function mealById(id) { return meals.find((m) => m.id === id); }
+  function feels() { return Diary.feelings(meals, diary); }
+  function showTab(name) {
+    const b = document.querySelector('[data-tab="' + name + '"]');
+    if (b) b.click();
+  }
 
   // ---------- tabs ----------
   document.querySelectorAll(".tab").forEach((b) => {
@@ -77,7 +81,6 @@
     });
   }
   wireFeeling("mealFeeling", () => activeMealFeeling, (v) => { activeMealFeeling = v; });
-  wireFeeling("checkinFeeling", () => modalFeeling, (v) => { modalFeeling = v; });
 
   // ---------- foto ----------
   $("mealPhoto").addEventListener("change", async (e) => {
@@ -96,7 +99,7 @@
     $("photoPreviewWrap").classList.add("hidden");
   });
 
-  // ---------- guardar comida + programar check-ins ----------
+  // ---------- guardar comida ----------
   $("saveMealBtn").addEventListener("click", async () => {
     const desc = $("mealDesc").value.trim();
     if (!desc && !draftPhoto) { toast("Describe qué comiste o sube una foto"); return; }
@@ -142,48 +145,13 @@
       catch { meal.thumb = draftPhoto; meal.hasPhoto = false; }
     }
     meals.unshift(meal);
-    scheduleCheckins(meal);
     persist();
     $("mealDesc").value = "";
     $("photoClear").click();
-    toast("Comida guardada · check-ins programados");
-    renderUpcoming();
+    toast("Comida guardada · si te sienta mal, cuéntalo en el diario");
     renderTimeline();
+    checkReminder();
   });
-
-  function scheduleCheckins(meal) {
-    // Genéricos + uno por ventana de ingrediente (inicio y fin), topados.
-    const now = Date.now();
-    const plans = [
-      { at: now + 2 * 3600e3, q: "Han pasado ~2 h. ¿Cómo te sientes?" },
-      { at: now + 6 * 3600e3, q: "Han pasado ~6 h. ¿Alguna molestia digestiva?" },
-      { at: now + 24 * 3600e3, q: "Ha pasado 1 día. ¿Cómo te sienta aquello que comiste?" }
-    ];
-    for (const ing of meal.ingredients) {
-      const w = D.ONSET_WINDOWS[ing.id];
-      if (!w) continue;
-      plans.push({ at: meal.createdAt + w.startH * 3600e3, q: `Ventana de ${w.label} (desde ${fmtH(w.startH)}). ¿Cómo te sientes?` });
-      if (w.endH <= 12) plans.push({ at: meal.createdAt + w.endH * 3600e3, q: `Fin de ventana de ${w.label}. ¿Algo que reportar?` });
-    }
-    // De-duplicar por cercanía (<20 min) y topar a 5 por comida.
-    plans.sort((a, b) => a.at - b.at);
-    const dedup = [];
-    for (const p of plans) {
-      if (p.at < now - 60e3) continue;
-      if (dedup.some((d) => Math.abs(d.at - p.at) < 20 * 60e3)) continue;
-      dedup.push(p);
-      if (dedup.length >= 5) break;
-    }
-    for (const p of dedup) {
-      checkins.push({ id: S.uid(), mealId: meal.id, scheduledAt: Math.max(p.at, now + 5000), prompt: p.q, doneAt: null });
-    }
-    armTimers();
-  }
-
-  function fmtH(h) {
-    if (h < 1) return Math.round(h * 60) + " min";
-    return h + " h";
-  }
 
   // ---------- analizar con IA ----------
   $("analyzeBtn").addEventListener("click", async () => {
@@ -212,8 +180,7 @@
         settings.keys[prov.id], settings.model, settings);
       box.innerHTML = "<strong>🤖 " + esc(prov.label) + ":</strong> " + esc(out.summary) +
         (out.food ? "<br><strong>Detectado:</strong> " + esc(out.food) +
-          (out.components && out.components.length ? " (" + esc(out.components.join(", ")) + ")" : "") : "") +
-        "<br><strong>Pregunta de seguimiento:</strong> " + esc(out.checkinQuestion || "¿Cómo te sientes?");
+          (out.components && out.components.length ? " (" + esc(out.components.join(", ")) + ")" : "") : "");
       // Fusiona ingredientes detectados por IA en la próxima comida guardada
       box.dataset.ingredients = JSON.stringify(out.ingredients || []);
       // Guarda la respuesta completa para persistirla con la comida (no se pierde).
@@ -234,120 +201,177 @@
     }
   });
 
-  // ---------- notificaciones ----------
+  // ---------- notificaciones + service worker ----------
+  const canNotify = () => "Notification" in window;
+  if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+    navigator.serviceWorker.register("sw.js").catch(() => { /* sin SW: queda `new Notification` */ });
+    navigator.serviceWorker.addEventListener("message", (ev) => {
+      if (ev.data && ev.data.type === "open-diary") openDiary(diaryOptsForDay(ev.data.day));
+    });
+  }
+
   $("enableNotifBtn").addEventListener("click", async () => {
-    if (!("Notification" in window)) { toast("Este navegador no soporta notificaciones"); return; }
+    if (!canNotify()) { toast("Este navegador no permite notificaciones aquí"); renderNotifStatus(); return; }
     const perm = await Notification.requestPermission();
     toast(perm === "granted" ? "Notificaciones activadas" : "Permiso: " + perm);
-    renderUpcoming();
+    renderNotifStatus();
   });
 
-  let timerIds = [];
-  function armTimers() {
-    timerIds.forEach(clearTimeout);
-    timerIds = [];
-    if (!("Notification" in window) || Notification.permission !== "granted") return;
-    const now = Date.now();
-    for (const c of checkins.filter((c) => !c.doneAt)) {
-      const delay = c.scheduledAt - now;
-      if (delay > 0 && delay < 7 * 24 * 3600e3) {
-        timerIds.push(setTimeout(() => fireNotification(c), delay));
-      }
-    }
-  }
-  function fireNotification(c) {
-    const meal = mealById(c.mealId);
+  async function notify(title, body, tag, day) {
+    if (!canNotify() || Notification.permission !== "granted") return false;
+    const opts = { body, tag, data: { day } };
     try {
-      const n = new Notification("Intolerancias · ¿cómo te sientes?", {
-        body: (meal ? (meal.description || "Tu comida") + " — " : "") + c.prompt,
-        tag: c.id
-      });
-      n.onclick = () => { window.focus(); openCheckin(c.id); };
-    } catch { /* permiso revocado: el aviso in-app sigue visible */ }
-    renderUpcoming();
-  }
-  // Polling in-app (cubre timers perdidos + sirve sin permiso de Notification).
-  setInterval(() => {
-    const due = checkins.some((c) => !c.doneAt && c.scheduledAt <= Date.now());
-    renderUpcoming();
-    if (due && $("checkinModal").open) return;
-    const first = checkins.filter((c) => !c.doneAt && c.scheduledAt <= Date.now())
-      .sort((a, b) => a.scheduledAt - b.scheduledAt)[0];
-    if (first && document.visibilityState === "visible" && !sessionStorage.getItem("intol.nag." + first.id)) {
-      sessionStorage.setItem("intol.nag." + first.id, "1");
-      toast("⏰ Tienes un check-in pendiente");
-    }
-  }, 30000);
-
-  function pendingCheckins() {
-    return checkins.filter((c) => !c.doneAt).sort((a, b) => a.scheduledAt - b.scheduledAt);
+      const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+      if (reg) { await reg.showNotification(title, opts); return true; }
+    } catch { /* sigue con la API clásica */ }
+    try {
+      const n = new Notification(title, opts);
+      n.onclick = () => { window.focus(); openDiary(diaryOptsForDay(day)); n.close(); };
+      return true;
+    } catch { return false; }
   }
 
-  function renderUpcoming() {
-    const ul = $("upcomingList");
-    const pend = pendingCheckins().slice(0, 6);
-    const badge = $("pendingBadge");
-    const overdue = checkins.filter((c) => !c.doneAt && c.scheduledAt <= Date.now()).length;
-    badge.textContent = overdue ? overdue : "";
-    badge.classList.toggle("hidden", !overdue);
-    if (!pend.length) { ul.innerHTML = "<li class='empty'>Sin check-ins pendientes. ¡Buen provecho! 🎉</li>"; return; }
-    ul.innerHTML = "";
-    for (const c of pend) {
-      const meal = mealById(c.mealId);
-      const li = document.createElement("li");
-      if (c.scheduledAt <= Date.now()) li.classList.add("overdue");
-      li.innerHTML = "<span class='checkin-text'>⏰ <strong>" + esc(c.scheduledAt <= Date.now() ? "ahora" : fmtIn(c.scheduledAt - Date.now())) +
-        "</strong> · " + esc(c.prompt) +
-        (meal && meal.description ? "<span class='checkin-meal hint'>" + esc(meal.description) + "</span>" : "") + "</span>";
-      const btn = document.createElement("button");
-      btn.className = "btn small"; btn.textContent = "Responder";
-      btn.addEventListener("click", () => openCheckin(c.id));
-      li.appendChild(btn);
-      ul.appendChild(li);
+  $("testReminderBtn").addEventListener("click", async () => {
+    const sent = await notify("Intolerancias · ¿cómo te sientes?",
+      "Así se verá el recordatorio del diario.", "diario-prueba", "");
+    toast(sent ? "Aviso de prueba enviado" : "Sin permiso de notificaciones: el recordatorio se verá dentro de la app");
+  });
+
+  function renderNotifStatus() {
+    const el = $("notifStatus");
+    const t = settings.reminder.time;
+    const standalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+    if (!canNotify()) {
+      el.textContent = (/iPhone|iPad/.test(navigator.userAgent) && !standalone
+        ? "En iPhone las notificaciones web solo existen con la app añadida a la pantalla de inicio. "
+        : "Este navegador no permite notificaciones aquí. ") + "Verás el recordatorio dentro de la app.";
+    } else if (Notification.permission === "granted") {
+      el.textContent = "✔ Notificaciones activadas. " + (settings.reminder.enabled
+        ? "Aviso a las " + t + " si ese día hay comidas y el diario está vacío."
+        : "El recordatorio está desactivado.");
+    } else if (Notification.permission === "denied") {
+      el.textContent = "Notificaciones bloqueadas: actívalas en los ajustes del sitio del navegador. Verás el recordatorio dentro de la app.";
+    } else {
+      el.textContent = "Pulsa «Activar notificaciones» para recibir el aviso de las " + t + ".";
     }
   }
 
-  // ---------- modal check-in ----------
-  function symptomChips() {
-    const wrap = $("symptomChips");
-    wrap.innerHTML = "";
-    for (const s of D.SYMPTOMS) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "chip" + (modalSymptoms.has(s) ? " sel" : "");
-      b.setAttribute("aria-pressed", String(modalSymptoms.has(s)));
-      b.textContent = s;
-      b.addEventListener("click", () => {
-        modalSymptoms.has(s) ? modalSymptoms.delete(s) : modalSymptoms.add(s);
-        b.setAttribute("aria-pressed", String(b.classList.toggle("sel")));
-      });
-      wrap.appendChild(b);
-    }
+  // ---------- recordatorio diario (21:00 por defecto) ----------
+  let reminderTimer = null;
+  function diaryOptsForDay(day) {
+    if (!day || day === Diary.dayKey(Date.now())) return {};
+    const t = new Date(day + "T" + settings.reminder.time).getTime();
+    return isFinite(t) ? { at: t } : {};
   }
 
-  function openCheckin(checkinId, mealId, dietId) {
-    modalCheckinId = checkinId || null;
-    modalDietId = dietId || null;
-    modalMealId = mealId || (checkinId && checkins.find((c) => c.id === checkinId)?.mealId) || latestMealId();
-    modalFeeling = 3; modalSymptoms = new Set();
-    $("checkinFeeling").querySelectorAll("button").forEach((x) => {
-      x.classList.toggle("sel", x.dataset.v === "3");
-      x.setAttribute("aria-pressed", String(x.dataset.v === "3"));
+  function checkReminder() {
+    clearTimeout(reminderTimer);
+    const banner = $("reminderBanner");
+    if (!settings.reminder.enabled) { banner.classList.add("hidden"); return; }
+    const now = Date.now();
+    const r = S.getReminder();
+    const st = Diary.reminderState(meals, diary, now, settings.reminder.time, r.dismissed);
+    if (st.due) {
+      $("reminderText").textContent = st.when === "hoy"
+        ? "Hoy has registrado " + st.meals + " comida(s) y aún no has contado cómo te sientes. ¿Qué tal te han sentado?"
+        : "Ayer registraste " + st.meals + " comida(s) pero no contaste cómo te sentiste. ¿Lo apuntas ahora?";
+      banner.dataset.day = st.day;
+      banner.classList.remove("hidden");
+      if (st.when === "hoy" && r.notified !== st.day) {
+        r.notified = st.day;
+        S.saveReminder(r);
+        // Si la app está a la vista y el aviso llega tarde (se abrió después de la hora), basta el banner.
+        const late = now - Diary.atHour(now, settings.reminder.time) > 10 * 60e3;
+        if (document.visibilityState !== "visible" || !late) {
+          notify("Intolerancias · ¿cómo te sientes?",
+            "Hoy has registrado " + st.meals + " comida(s). Cuéntale al diario qué tal te han sentado.",
+            "diario-" + st.day, st.day);
+        }
+      }
+    } else {
+      banner.classList.add("hidden");
+    }
+    const next = Diary.nextReminderAt(now, settings.reminder.time);
+    reminderTimer = setTimeout(checkReminder, Math.min(next - now + 1000, 2147483000));
+  }
+  setInterval(checkReminder, 60000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkReminder(); });
+
+  $("reminderWrite").addEventListener("click", () => openDiary(diaryOptsForDay($("reminderBanner").dataset.day)));
+  $("reminderDismiss").addEventListener("click", () => {
+    const r = S.getReminder();
+    r.dismissed = $("reminderBanner").dataset.day;
+    S.saveReminder(r);
+    checkReminder();
+  });
+
+  function readReminderSettings() {
+    settings.reminder = {
+      enabled: $("reminderEnabled").checked,
+      time: /^\d\d:\d\d$/.test($("reminderTime").value) ? $("reminderTime").value : "21:00"
+    };
+    S.saveSettings(settings);
+    renderNotifStatus();
+    checkReminder();
+  }
+  $("reminderEnabled").addEventListener("change", readReminderSettings);
+  $("reminderTime").addEventListener("change", readReminderSettings);
+
+  // ---------- diario de síntomas ----------
+  function toLocalInput(ts) {
+    const d = new Date(ts);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  }
+  function fromLocalInput(v) {
+    const t = new Date(v).getTime();
+    return isFinite(t) ? t : Date.now();
+  }
+
+  function setLevelButtons() {
+    $("diaryLevel").querySelectorAll("button").forEach((x) => {
+      const on = Number(x.dataset.v) === diaryLevel;
+      x.classList.toggle("sel", on);
+      x.setAttribute("aria-pressed", String(on));
     });
-    $("checkinNote").value = "";
-    symptomChips();
-    const meal = modalMealId && mealById(modalMealId);
-    const diet = modalDietId && diets.find((d) => d.id === modalDietId);
-    $("checkinCtx").textContent = diet
-      ? "Siguiendo: " + dietTitle(diet) + " (" + fmtDT(diet.createdAt) + ")"
-      : meal
-      ? "Sobre: " + (meal.description || "comida") + " (" + fmtDT(meal.createdAt) + ")"
-      : "Registro general de cómo estás.";
-    if (!$("checkinModal").open) {
+  }
+  $("diaryLevel").querySelectorAll("button").forEach((b) => {
+    b.addEventListener("click", () => {
+      const v = Number(b.dataset.v);
+      diaryLevel = diaryLevel === v ? null : v;
+      setLevelButtons();
+    });
+  });
+
+  function updateDiaryCtx() {
+    const at = fromLocalInput($("diaryAt").value);
+    const n = Diary.windowMeals(meals, at).length;
+    const diet = diaryDietId && diets.find((d) => d.id === diaryDietId);
+    $("diaryCtx").textContent = (diet ? "Siguiendo: " + dietTitle(diet) + ". " : "") + (n
+      ? "Se cruzará con " + n + " comida(s) de las 24 h anteriores."
+      : "No hay comidas en las 24 h anteriores a esa hora: se guardará igualmente.");
+    const text = $("diaryText").value;
+    const sy = Diary.extractSymptoms(text);
+    $("diaryDetected").textContent = (sy.length ? "Detectado: " + sy.join(", ") + "." : "") +
+      (Diary.redFlags(text) ? " ⚠️ Si es intenso o empeora, busca atención médica (112)." : "");
+  }
+  $("diaryText").addEventListener("input", updateDiaryCtx);
+  $("diaryAt").addEventListener("change", updateDiaryCtx);
+
+  function openDiary(opts) {
+    const o = opts || {};
+    diaryDietId = o.dietId || null;
+    diaryLevel = null;
+    $("diaryText").value = "";
+    $("diaryAt").value = toLocalInput(o.at || Date.now());
+    $("diaryAt").max = toLocalInput(Date.now() + 60e3);
+    setLevelButtons();
+    updateDiaryCtx();
+    if (!$("diaryModal").open) {
       lockScroll();
-      $("checkinModal").showModal();
-      $("checkinFeeling").querySelector('[aria-pressed="true"]').focus({ preventScroll: true });
-      $("checkinModal").querySelector(".modal-body").scrollTop = 0;
+      $("diaryModal").showModal();
+      $("diaryModal").querySelector(".modal-body").scrollTop = 0;
+      $("diaryText").focus({ preventScroll: true });
     }
   }
 
@@ -364,52 +388,174 @@
     document.body.style.top = "";
     window.scrollTo({ top: lockedScrollY, behavior: "instant" });
   }
-  $("checkinModal").addEventListener("close", unlockScroll);
+  $("diaryModal").addEventListener("close", unlockScroll);
 
-  function latestMealId() {
-    return meals.length ? meals[0].id : null;
+  $("diaryFab").addEventListener("click", () => openDiary());
+  $("diaryOpenBtn").addEventListener("click", () => openDiary());
+  $("diaryClose").addEventListener("click", () => $("diaryModal").close());
+  $("diarySave").addEventListener("click", () => {
+    const text = $("diaryText").value.trim();
+    if (!text) { toast("Cuenta cómo te sientes"); $("diaryText").focus(); return; }
+    const e = {
+      id: S.uid(),
+      at: Math.min(fromLocalInput($("diaryAt").value), Date.now()),
+      createdAt: Date.now(),
+      text: text.slice(0, 1500),
+      level: diaryLevel,
+      symptoms: Diary.extractSymptoms(text),
+      analysis: null,
+      ...(diaryDietId ? { dietId: diaryDietId } : {})
+    };
+    diary.push(e);
+    diary.sort((a, b) => b.at - a.at);
+    persist();
+    $("diaryModal").close();
+    showTab("timeline");
+    if (Diary.looksFine(e)) {
+      toast("Apuntado ✔ · ¡que siga así!");
+      afterDiaryChange();
+      return;
+    }
+    toast((e.level && e.level <= 2) || e.symptoms.length ? "Apuntado · buscando posibles causas…" : "Apuntado ✔");
+    analyzeEntry(e);
+  });
+
+  function afterDiaryChange() {
+    renderTimeline(); renderDiaryRecent(); renderSummary(); renderDiet(); checkReminder();
   }
 
-  $("quickCheckinBtn").addEventListener("click", () => openCheckin(null, null));
-  $("checkinClose").addEventListener("click", () => $("checkinModal").close());
-  $("checkinSnooze").addEventListener("click", () => {
-    if (modalCheckinId) {
-      const c = checkins.find((x) => x.id === modalCheckinId);
-      if (c) c.scheduledAt = Date.now() + 30 * 60e3;
-      persist();
+  async function analyzeEntry(e) {
+    const others = diary.filter((x) => x.id !== e.id);
+    const suspects = Diet.buildSignals(meals, Diary.feelings(meals, others)).avoid;
+    const local = () => ({ source: "local", label: "Análisis local", at: Date.now(), ...Diary.localAnalyze(e, meals, suspects) });
+    const prov = P.active(settings);
+    const withMeals = Diary.windowMeals(meals, e.at).length > 0;
+    if (!prov || !prov.implemented || !prov.analyzeDiary || !withMeals) {
+      e.analysis = local();
+      persist(); afterDiaryChange();
+      return;
     }
-    $("checkinModal").close();
-    renderUpcoming(); toast("Pospuesto 30 min");
-  });
-  $("checkinSave").addEventListener("click", () => {
-    if (modalCheckinId) {
-      const c = checkins.find((x) => x.id === modalCheckinId);
-      if (c) {
-        c.doneAt = Date.now();
-        c.feeling = modalFeeling;
-        c.symptoms = [...modalSymptoms];
-        c.note = $("checkinNote").value.trim();
-      }
-    } else {
-      checkins.push({
-        id: S.uid(), mealId: modalMealId, scheduledAt: Date.now(), doneAt: Date.now(),
-        prompt: modalDietId ? "Check-in de dieta de prueba" : "Registro espontáneo", feeling: modalFeeling,
-        symptoms: [...modalSymptoms], note: $("checkinNote").value.trim(),
-        ...(modalDietId ? { dietId: modalDietId } : {})
+    analyzing.add(e.id);
+    renderTimeline();
+    const { body, refs } = Diary.payload(e, meals, suspects);
+    let analysis;
+    try {
+      const res = await prov.analyzeDiary(body, settings.keys[prov.id], settings.model, settings);
+      analysis = { source: "ia", provider: prov.id, label: prov.label, at: Date.now(), ...Diary.applyRefs(res, refs) };
+      if (Diary.redFlags(e.text)) analysis.urgent = true;
+    } catch (err) {
+      const info = P.describeError(err, prov.label);
+      analysis = { ...local(), error: info.title };
+    } finally {
+      analyzing.delete(e.id);
+    }
+    const cur = diary.find((x) => x.id === e.id);
+    if (cur) { cur.analysis = analysis; persist(); }
+    afterDiaryChange();
+  }
+
+  function renderDiaryRecent() {
+    const ul = $("diaryRecent");
+    const list = diary.slice(0, 3);
+    if (!list.length) {
+      ul.innerHTML = "<li class='empty'>Aún no has escrito nada. Cuando te sientas mal, pulsa «¿Cómo te sientes?».</li>";
+      return;
+    }
+    ul.innerHTML = "";
+    for (const e of list) {
+      const li = document.createElement("li");
+      const a = e.analysis;
+      const first = a && a.causes && a.causes[0] && mealById(a.causes[0].mealId);
+      li.innerHTML = "<button type='button' class='diary-recent-item'><time>" + esc(fmtDT(e.at)) + "</time>" +
+        "<span>" + esc((e.text || (e.legacy && e.legacy.prompt) || "").slice(0, 90)) + "</span>" +
+        (first ? "<span class='hint'>Posible causa: " + esc((first.description || "comida").slice(0, 50)) + "</span>" : "") +
+        "</button>";
+      li.querySelector("button").addEventListener("click", () => {
+        showTab("timeline");
+        const el = document.getElementById("entry-" + e.id);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       });
+      ul.appendChild(li);
     }
-    persist();
-    $("checkinModal").close();
-    renderUpcoming(); renderTimeline(); renderSummary(); renderDiet();
-    toast(modalFeeling <= 2 ? "Vaya 😟 · registrado. ¡Cuídate!" : "Registrado ✔");
-  });
+  }
+
+  function diaryAnalysisHtml(e) {
+    if (analyzing.has(e.id)) {
+      const prov = P.active(settings);
+      return "<div class='diary-analysis is-pending'>⏳ Buscando posibles causas" + (prov ? " con " + esc(prov.label) : "") + "…</div>";
+    }
+    const a = e.analysis;
+    if (!a) {
+      return Diary.looksFine(e) ? "<p class='hint'>Sin molestias: no hace falta buscar causas.</p>" : "";
+    }
+    const causes = (a.causes || []).map((c) => {
+      const m = mealById(c.mealId);
+      const ago = m ? Diary.fmtAgo((e.at - m.createdAt) / 3600e3) : "";
+      return "<li><span class='pill lk-" + esc(c.likelihood) + "'>" + esc(c.likelihood) + "</span> " +
+        "<strong>" + esc(m ? (m.description || (m.analysis && m.analysis.food) || "(solo foto)") : "(comida borrada)") + "</strong>" +
+        (m ? " <span class='hint'>" + esc(fmtDT(m.createdAt)) + " · " + esc(ago) + " antes</span>" : "") +
+        ((c.components || []).length ? "<br>" + esc(c.components.join(", ")) : "") +
+        (c.reason ? "<br><span class='hint'>" + esc(c.reason) + "</span>" : "") + "</li>";
+    }).join("");
+    return "<div class='diary-analysis" + (a.source === "ia" ? " is-ia" : "") + "'>" +
+      (a.urgent ? "<p class='diary-urgent'>🚑 Lo que describes puede necesitar atención médica. Si es intenso o empeora, llama al 112 o acude a urgencias.</p>" : "") +
+      "<p><strong>" + (a.source === "ia" ? "🤖 " + esc(a.label || "IA") : "🔎 Análisis local (sin IA)") + " · posibles causas</strong></p>" +
+      "<p>" + esc(a.summary || "") + "</p>" +
+      (causes ? "<ol class='diary-causes'>" + causes + "</ol>" : "") +
+      (a.advice ? "<p>💡 " + esc(a.advice) + "</p>" : "") +
+      (a.error ? "<p class='hint'>⚠️ La IA no respondió: " + esc(a.error) + " Se muestra el análisis local.</p>" : "") +
+      "<p class='hint'>" + esc(D.DISCLAIMER) + "</p></div>";
+  }
+
+  function diaryCard(e) {
+    const card = document.createElement("article");
+    card.className = "meal diary-entry" + (Diary.isBadEntry(e) ? " is-bad" : "");
+    card.id = "entry-" + e.id;
+    const lm = e.legacy && e.mealId && mealById(e.mealId);
+    card.innerHTML =
+      "<header class='meal-head'><span class='diary-icon' aria-hidden='true'>📝</span>" +
+      "<div class='meal-title'><strong>" + (e.legacy ? "Check-in (histórico)" : "Diario") + "</strong>" +
+      "<time datetime='" + new Date(e.at).toISOString() + "'>" + fmtDT(e.at) + "</time></div>" +
+      (e.level ? "<span class='diary-level'>" + FACES[e.level] + " <span class='score'>" + e.level + "/5</span></span>" : "") +
+      "</header>" +
+      (e.text ? "<p class='diary-text'>" + esc(e.text) + "</p>" : "") +
+      (e.legacy ? "<p class='hint'>" + esc(e.legacy.prompt) + (lm ? " · sobre «" + esc(lm.description || "comida") + "»" : "") + "</p>" : "") +
+      ((e.symptoms || []).length || e.dietId ? "<div class='pills'>" +
+        (e.symptoms || []).map((x) => "<span class='pill src-sym'>" + esc(x) + "</span>").join("") +
+        (e.dietId ? "<span class='pill src-diet'>🥗 Dieta de prueba</span>" : "") + "</div>" : "") +
+      diaryAnalysisHtml(e);
+    const row = document.createElement("div");
+    row.className = "row";
+    const b1 = document.createElement("button");
+    b1.className = "btn small ghost";
+    b1.textContent = e.analysis ? "🔄 Reanalizar" : "🔎 Buscar causas";
+    b1.disabled = analyzing.has(e.id);
+    b1.addEventListener("click", () => analyzeEntry(e));
+    const b2 = document.createElement("button");
+    b2.className = "btn small ghost"; b2.textContent = "Borrar";
+    b2.addEventListener("click", () => {
+      if (!confirm("¿Borrar esta entrada del diario?")) return;
+      diary = diary.filter((x) => x.id !== e.id);
+      persist(); afterDiaryChange();
+    });
+    row.append(b1, b2);
+    card.appendChild(row);
+    return card;
+  }
 
   // ---------- timeline ----------
   async function renderTimeline() {
     const wrap = $("timeline");
-    if (!meals.length) { wrap.innerHTML = "<p class='empty'>Aún no hay comidas. Registra la primera en la pestaña ＋ Registrar.</p>"; return; }
+    if (!meals.length && !diary.length) {
+      wrap.innerHTML = "<p class='empty'>Aún no hay comidas ni entradas del diario. Registra la primera en la pestaña ＋ Registrar.</p>";
+      return;
+    }
     wrap.innerHTML = "";
-    for (const m of meals.slice(0, 50)) {
+    const items = meals.map((m) => ({ t: m.createdAt, m })).concat(diary.map((e) => ({ t: e.at, e })))
+      .sort((a, b) => b.t - a.t).slice(0, 80);
+    for (const it of items) {
+      if (it.e) { wrap.appendChild(diaryCard(it.e)); continue; }
+      const m = it.m;
       const card = document.createElement("article");
       card.className = "meal";
       const ings = m.ingredients.map((i) => {
@@ -417,9 +563,8 @@
         return "<span class='pill src-" + esc(i.source) + "' title='" + esc(w ? w.hint : "") + "'>" +
           esc(w ? w.label : i.id) + "</span>";
       }).join("");
-      const follows = checkins.filter((c) => c.mealId === m.id && c.doneAt)
-        .sort((a, b) => a.doneAt - b.doneAt);
-      const face = ["", "😖", "🙁", "😐", "🙂", "😄"][m.feeling0] || "😐";
+      const follows = Diary.entriesForMeal(m, meals, diary);
+      const face = FACES[m.feeling0] || "😐";
       card.innerHTML =
         "<header class='meal-head'>" +
         (m.thumb ? "<img class='meal-thumb' alt='Foto de la comida' src='" + m.thumb + "' data-full='" + m.id + "' loading='lazy' />" : "") +
@@ -431,23 +576,26 @@
         (m.analysis ? analysisHtml(m.analysis) : "") +
         "<div class='follow'>" +
         (follows.length
-          ? "<ul class='follow-list'>" + follows.map((c) => "<li>✔ <time>" + fmtDT(c.doneAt) + "</time> → <strong class='score'>" + c.feeling + "/5</strong> " +
-            esc((c.symptoms || []).join(", ")) + (c.note ? " · “" + esc(c.note) + "”" : "") + "</li>").join("") + "</ul>"
-          : "<span class='hint'>Sin check-ins respondidos todavía.</span>") +
+          ? "<ul class='follow-list'>" + follows.map((e) => {
+            const cited = e.analysis && (e.analysis.causes || []).some((c) => c.mealId === m.id);
+            return "<li>📝 <time>" + fmtDT(e.at) + "</time> → <strong class='score'>" + Diary.entryScore(e) + "/5</strong> " +
+              esc((e.symptoms || []).join(", ")) + (e.text ? " · “" + esc(e.text.slice(0, 80)) + "”" : "") +
+              (cited ? " <span class='pill lk-media'>posible causa</span>" : "") + "</li>";
+          }).join("") + "</ul>"
+          : "<span class='hint'>Sin entradas del diario en las 24 h siguientes.</span>") +
         "</div>";
       const row = document.createElement("div");
       row.className = "row";
       const b1 = document.createElement("button");
-      b1.className = "btn small ghost"; b1.textContent = "＋ check-in";
-      b1.addEventListener("click", () => openCheckin(null, m.id));
+      b1.className = "btn small ghost"; b1.textContent = "📝 Diario";
+      b1.addEventListener("click", () => openDiary());
       const b2 = document.createElement("button");
       b2.className = "btn small ghost"; b2.textContent = "Borrar";
       b2.addEventListener("click", async () => {
-        if (!confirm("¿Borrar esta comida y sus check-ins?")) return;
+        if (!confirm("¿Borrar esta comida? (tus entradas del diario se mantienen)")) return;
         meals = meals.filter((x) => x.id !== m.id);
-        checkins = checkins.filter((x) => x.mealId !== m.id);
         await S.photoDel(m.id);
-        persist(); renderTimeline(); renderUpcoming(); renderSummary();
+        persist(); renderTimeline(); renderSummary(); checkReminder();
       });
       row.append(b1, b2);
       if (m.analysis) {
@@ -459,7 +607,7 @@
         b4.addEventListener("click", () => {
           if (!confirm("¿Quitar el análisis IA guardado? (tu descripción no se toca)")) return;
           m.analysis = null;
-          persist(); renderTimeline(); renderUpcoming();
+          persist(); renderTimeline();
         });
         row.append(b3, b4);
       }
@@ -505,7 +653,7 @@
           .map((x) => x.trim().slice(0, 60)).filter(Boolean).slice(0, 6),
         summary: box.querySelector("[data-f='summary']").value.trim().slice(0, 2000)
       };
-      persist(); renderTimeline(); renderUpcoming(); toast("Análisis actualizado");
+      persist(); renderTimeline(); toast("Análisis actualizado");
     });
     box.querySelector("[data-act='cancel']").addEventListener("click", renderTimeline);
   }
@@ -514,8 +662,9 @@
   function stats() {
     // ingId -> {n, sum, bad}
     const acc = {};
+    const recs = feels();
     for (const m of meals) {
-      const rel = checkins.filter((c) => c.mealId === m.id && c.doneAt && c.feeling != null);
+      const rel = recs.filter((c) => c.mealId === m.id);
       if (!rel.length) continue;
       const avg = rel.reduce((a, c) => a + c.feeling, 0) / rel.length;
       for (const ing of m.ingredients) {
@@ -560,7 +709,9 @@
   }
 
   $("exportBtn").addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify({ meals, checkins, diets, exportedAt: new Date().toISOString() }, null, 2)],
+    const legacy = S.getCheckins();
+    const data = { meals, diary, diets, ...(legacy.length ? { checkinsLegacy: legacy } : {}), exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)],
       { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -569,9 +720,9 @@
     URL.revokeObjectURL(a.href);
   });
   $("wipeBtn").addEventListener("click", () => {
-    if (!confirm("¿Borrar TODOS los datos locales (comidas, check-ins, fotos)?")) return;
-    S.wipe(); meals = []; checkins = []; diets = [];
-    persist(); renderTimeline(); renderUpcoming(); renderSummary(); renderDiet();
+    if (!confirm("¿Borrar TODOS los datos locales (comidas, diario, planes, fotos)?")) return;
+    S.wipe(); meals = []; diary = []; diets = [];
+    persist(); S.setDiaryMigrated(); afterDiaryChange();
     toast("Datos locales borrados");
   });
 
@@ -645,13 +796,13 @@
   });
 
   function renderDietSignals() {
-    const sig = Diet.buildSignals(meals, checkins);
+    const sig = Diet.buildSignals(meals, feels());
     const box = $("dietSignals");
     if (!sig.mealsWithData) {
-      box.innerHTML = "<p class='hint'>Aún no hay comidas con check-ins respondidos: se propondrá una " +
+      box.innerHTML = "<p class='hint'>Aún no hay comidas con entradas del diario: se propondrá una " +
         "<strong>dieta equilibrada y ligera</strong>. Cuantos más registros, más afinado el plan.</p>";
     } else if (!sig.suspects.length) {
-      box.innerHTML = "<p class='hint'>Sin señales claras en " + sig.mealsWithData + " comida(s) con check-ins: " +
+      box.innerHTML = "<p class='hint'>Sin señales claras en " + sig.mealsWithData + " comida(s) con entradas del diario: " +
         "se propondrá una <strong>dieta equilibrada y ligera</strong>.</p>";
     } else {
       box.innerHTML = "<p><strong>Se excluirá:</strong></p><ul class='plain'>" + sig.suspects.map((x) =>
@@ -729,12 +880,11 @@
       thumb: null, analysis: null, dietId: d.id, dietSlot: pm.slot
     };
     meals.unshift(meal);
-    scheduleCheckins(meal);
     d.eaten = d.eaten || {};
     d.eaten[pm.slot] = meal.createdAt;
     persist(); S.saveDiets(diets);
-    renderUpcoming(); renderTimeline(); renderDiet(d.id);
-    toast("Registrado · check-ins programados");
+    renderTimeline(); renderDiet(d.id); checkReminder();
+    toast("Registrado · si notas algo, cuéntalo en el diario");
   }
 
   function fmtAvg(st) {
@@ -745,7 +895,7 @@
   }
 
   function compareHtml(d) {
-    const c = Diet.compare(d, meals, checkins);
+    const c = Diet.compare(d, meals, feels());
     const top = (st) => st.top.length ? st.top.map((t) => esc(t.s) + " ×" + t.k).join(", ") : "–";
     const col = (title, st, cls) => "<div class='diet-compare-col " + cls + "'><p class='diet-slot'>" + title + "</p><dl>" +
       "<dt>Nivel medio</dt><dd>" + fmtAvg(st) + "</dd>" +
@@ -753,7 +903,7 @@
       "<dt>Síntomas</dt><dd>" + top(st) + "</dd></dl></div>";
     return "<div class='diet-compare'><p><strong>¿Cómo te sienta?</strong></p><div class='diet-compare-grid'>" +
       col("Con el plan", c.with, "is-plan") + col("Sin plan", c.without, "is-base") + "</div>" +
-      (c.with.n ? "" : "<p class='hint'>Sigue el plan con «Comí esto» y registra cómo te sientes para comparar.</p>") +
+      (c.with.n ? "" : "<p class='hint'>Sigue el plan con «Comí esto» y cuenta en el diario cómo te sientes para comparar.</p>") +
       "</div>";
   }
 
@@ -827,12 +977,9 @@
       const pm = d.meals.find((x) => x.slot === b.dataset.eat);
       b.addEventListener("click", () => eatPlanMeal(d, pm));
     });
-    det.querySelector("[data-act='feel']").addEventListener("click", () => {
-      const last = meals.find((m) => m.dietId === d.id);
-      openCheckin(null, last ? last.id : null, d.id);
-    });
+    det.querySelector("[data-act='feel']").addEventListener("click", () => openDiary({ dietId: d.id }));
     det.querySelector("[data-act='del']").addEventListener("click", () => {
-      if (!confirm("¿Borrar este plan? (las comidas y check-ins que registraste se mantienen)")) return;
+      if (!confirm("¿Borrar este plan? (las comidas y entradas del diario que registraste se mantienen)")) return;
       diets = diets.filter((x) => x.id !== d.id);
       S.saveDiets(diets);
       renderDiet();
@@ -857,9 +1004,17 @@
   }
 
   // ---------- init ----------
-  renderUpcoming();
+  $("reminderEnabled").checked = settings.reminder.enabled;
+  $("reminderTime").value = settings.reminder.time;
   renderTimeline();
+  renderDiaryRecent();
   renderProviderStatus();
+  renderNotifStatus();
   renderDiet();
-  armTimers();
+  checkReminder();
+  const qs = new URLSearchParams(location.search);
+  if (qs.has("diario")) {
+    history.replaceState(null, "", location.pathname);
+    openDiary(diaryOptsForDay(qs.get("diario")));
+  }
 })();

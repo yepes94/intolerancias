@@ -1,5 +1,5 @@
 /* Intolerancias · js/store.js
- * Persistencia 100% local: localStorage (comidas, check-ins, ajustes)
+ * Persistencia 100% local: localStorage (comidas, diario, ajustes; check-ins antiguos solo lectura)
  * + IndexedDB (fotos a tamaño completo). Sin backend. */
 (function () {
   "use strict";
@@ -8,6 +8,9 @@
   const LS_CHECKINS = "intol.checkins.v1";
   const LS_SETTINGS = "intol.settings.v1";
   const LS_DIETS = "intol.diets.v1";
+  const LS_DIARY = "intol.diary.v1";
+  const LS_DIARY_MIGRATED = "intol.diary.migrated.v1";
+  const LS_REMINDER = "intol.reminder.v1";
 
   const IDB_NAME = "intol-photos";
   const IDB_STORE = "photos";
@@ -88,8 +91,14 @@
   const Store = {
     getMeals() { return load(LS_MEALS, []); },
     saveMeals(m) { save(LS_MEALS, m); },
+    /** Check-ins del sistema anterior: solo se leen para migrarlos y exportarlos. */
     getCheckins() { return load(LS_CHECKINS, []); },
-    saveCheckins(c) { save(LS_CHECKINS, c); },
+    getDiary() { return load(LS_DIARY, []); },
+    saveDiary(d) { save(LS_DIARY, d); },
+    diaryMigrated() { return load(LS_DIARY_MIGRATED, false) === true; },
+    setDiaryMigrated() { save(LS_DIARY_MIGRATED, true); },
+    getReminder() { return load(LS_REMINDER, {}); },
+    saveReminder(r) { save(LS_REMINDER, r); },
     getDiets() { return load(LS_DIETS, []); },
     saveDiets(d) { save(LS_DIETS, d); },
     getSettings() {
@@ -98,10 +107,12 @@
           keys: {},
           preferred: "auto",
           model: window.IntolData.DEFAULT_MODEL,
-          groqModel: (window.IntolData && window.IntolData.GROQ_MODEL) || "llama-3.3-70b-versatile"
+          groqModel: (window.IntolData && window.IntolData.GROQ_MODEL) || "llama-3.3-70b-versatile",
+          reminder: { enabled: true, time: "21:00" }
         },
         load(LS_SETTINGS, {})
       );
+      s.reminder = Object.assign({ enabled: true, time: "21:00" }, s.reminder);
       // Antiguo modelo por defecto, retirado por Anthropic el 15-jun-2026.
       if (s.model === "claude-sonnet-4-20250514") s.model = window.IntolData.DEFAULT_MODEL;
       return s;
@@ -112,6 +123,9 @@
       localStorage.removeItem(LS_MEALS);
       localStorage.removeItem(LS_CHECKINS);
       localStorage.removeItem(LS_DIETS);
+      localStorage.removeItem(LS_DIARY);
+      localStorage.removeItem(LS_DIARY_MIGRATED);
+      localStorage.removeItem(LS_REMINDER);
       try {
         const req = indexedDB.deleteDatabase(IDB_NAME);
         req.onsuccess = req.onerror = () => {};

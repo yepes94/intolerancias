@@ -8,6 +8,8 @@
  *     implemented: boolean,          // false = stub, pendiente sin refactorizar
  *     needsVision: boolean,
  *     analyzeFood(input, apiKey, model) -> Promise<{ ingredients: string[], summary: string, checkinQuestion: string }>
+ *     planDiet(input, apiKey, model, settings) -> /api/diet
+ *     analyzeDiary({ entry, meals, suspects }, apiKey, model, settings) -> /api/diary
  *     ping(apiKey, model) -> Promise<string>   // "ok" o lanza Error explicativo
  *   }
  *
@@ -50,6 +52,7 @@
 
   const PROXY_URL = "/api/analyze";
   const DIET_URL = "/api/diet";
+  const DIARY_URL = "/api/diary";
 
   // Todo el tráfico IA sale por el proxy same-origin de Pages Functions:
   // el navegador nunca toca api.anthropic.com/api.groq.com (adiós CORS) y
@@ -97,7 +100,18 @@
   async function proxyCall(providerId, providerLabel, action, payload, url) {
     const validIngredients = Object.keys(D().ONSET_WINDOWS);
     const target = url || PROXY_URL;
-    const reqBody = url === DIET_URL
+    const reqBody = url === DIARY_URL
+      ? {
+        provider: providerId,
+        key: payload.apiKey,
+        model: payload.model || D().DEFAULT_MODEL,
+        groqModel: payload.groqModel || D().GROQ_MODEL,
+        entry: payload.entry || {},
+        meals: payload.meals || [],
+        suspects: payload.suspects || [],
+        validIngredients
+      }
+      : url === DIET_URL
       ? {
         provider: providerId,
         key: payload.apiKey,
@@ -342,6 +356,15 @@
     return result;
   }
 
+  function checkDiary(result, label) {
+    if (!result || typeof result.summary !== "string" || !Array.isArray(result.causes)) {
+      throw codedError("badjson",
+        label + " respondió pero sin un análisis reconocible. Pulsa «Reanalizar»; " +
+        "el análisis local sigue disponible.");
+    }
+    return result;
+  }
+
   const Providers = {
     order: ["claude", "hermes", "groq", "cursor"],
 
@@ -378,6 +401,12 @@
           return checkPlan(await proxyCall("claude", "Claude", "plan", {
             apiKey, model, groqModel: settings && settings.groqModel, scope, slot, context
           }, DIET_URL), "Claude");
+        },
+
+        async analyzeDiary({ entry, meals, suspects }, apiKey, model, settings) {
+          return checkDiary(await proxyCall("claude", "Claude", "diary", {
+            apiKey, model, groqModel: settings && settings.groqModel, entry, meals, suspects
+          }, DIARY_URL), "Claude");
         }
       },
 
@@ -386,7 +415,8 @@
         id: "hermes", label: "Hermes", implemented: false, needsVision: true,
         async ping() { throw codedError("notimpl", "Proveedor Hermes aún no implementado (pendiente, sin refactorizar: implementar ping + analyzeFood aquí)."); },
         async analyzeFood() { throw codedError("notimpl", "Proveedor Hermes aún no implementado."); },
-        async planDiet() { throw codedError("notimpl", "Proveedor Hermes aún no implementado."); }
+        async planDiet() { throw codedError("notimpl", "Proveedor Hermes aún no implementado."); },
+        async analyzeDiary() { throw codedError("notimpl", "Proveedor Hermes aún no implementado."); }
       },
       groq: {
         id: "groq",
@@ -422,13 +452,20 @@
           return checkPlan(await proxyCall("groq", "Groq", "plan", {
             apiKey, groqModel: settings && settings.groqModel, scope, slot, context
           }, DIET_URL), "Groq");
+        },
+
+        async analyzeDiary({ entry, meals, suspects }, apiKey, _model, settings) {
+          return checkDiary(await proxyCall("groq", "Groq", "diary", {
+            apiKey, groqModel: settings && settings.groqModel, entry, meals, suspects
+          }, DIARY_URL), "Groq");
         }
       },
       cursor: {
         id: "cursor", label: "Cursor", implemented: false, needsVision: false,
         async ping() { throw codedError("notimpl", "Proveedor Cursor aún no implementado (pendiente, sin refactorizar: implementar ping + analyzeFood aquí)."); },
         async analyzeFood() { throw codedError("notimpl", "Proveedor Cursor aún no implementado."); },
-        async planDiet() { throw codedError("notimpl", "Proveedor Cursor aún no implementado."); }
+        async planDiet() { throw codedError("notimpl", "Proveedor Cursor aún no implementado."); },
+        async analyzeDiary() { throw codedError("notimpl", "Proveedor Cursor aún no implementado."); }
       }
     },
 

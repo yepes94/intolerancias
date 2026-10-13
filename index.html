@@ -26,7 +26,6 @@
       </button>
       <button class="tab" data-tab="timeline" role="tab" aria-selected="false" aria-controls="tab-timeline">
         <span class="tab-icon" aria-hidden="true">🕘</span><span class="tab-label">Timeline</span>
-        <span class="badge hidden" id="pendingBadge"></span>
       </button>
       <button class="tab" data-tab="dieta" role="tab" aria-selected="false" aria-controls="tab-dieta">
         <span class="tab-icon" aria-hidden="true">🥗</span><span class="tab-label">Dieta</span>
@@ -46,6 +45,14 @@
       orientativas y no diagnostican nada. Ante síntomas persistentes, pide una
       <strong>prueba médica real</strong> (p. ej. test de intolerancias con un profesional sanitario).</p>
   </aside>
+
+  <div id="reminderBanner" class="reminder hidden" role="status" aria-live="polite">
+    <p id="reminderText"></p>
+    <div class="row">
+      <button type="button" id="reminderWrite" class="btn small primary">📝 Contar cómo me siento</button>
+      <button type="button" id="reminderDismiss" class="btn small ghost">Ahora no</button>
+    </div>
+  </div>
 
   <main>
     <!-- ============ REGISTRAR ============ -->
@@ -90,13 +97,12 @@
       </div>
 
       <div class="card">
-        <h3>⏰ Próximos check-ins <small>“¿cómo te sientes?”</small></h3>
-        <p class="hint">Al guardar una comida se programan avisos en las ventanas típicas de aparición
-          de cada ingrediente sospechoso (solo orientativo).</p>
-        <ul id="upcomingList" class="checkin-list"></ul>
+        <h3>📝 Diario de síntomas <small>escribe cuando te sientas mal</small></h3>
+        <p class="hint">Cuéntalo con tus palabras cuando quieras. Al guardarlo, la app cruza lo que cuentas
+          con lo que comiste en las 24 h anteriores y te dice qué puede estar detrás (orientativo).</p>
+        <ul id="diaryRecent" class="diary-recent"></ul>
         <div class="row">
-          <button id="enableNotifBtn" class="btn small">🔔 Activar notificaciones</button>
-          <button id="quickCheckinBtn" class="btn small ghost">Registrar cómo estoy ahora</button>
+          <button id="diaryOpenBtn" class="btn small primary">📝 Escribir en el diario</button>
         </div>
       </div>
     </section>
@@ -148,7 +154,8 @@
     <!-- ============ RESUMEN ============ -->
     <section id="tab-resumen" class="panel" role="tabpanel">
       <h2>Resumen: qué te sienta bien / mal</h2>
-      <p class="hint">Correlación simple y local: agrupa tus check-ins por ingrediente sospechoso.
+      <p class="hint">Correlación simple y local: cruza tu diario con las comidas de las 24 h anteriores
+        (o con la comida señalada como posible causa) y agrupa por ingrediente sospechoso.
         Orientativo, no diagnóstico.</p>
       <div id="suggestions" class="suggestions"></div>
       <div class="cols">
@@ -192,47 +199,67 @@
         </div>
         <p id="providerMsg" class="hint" aria-live="polite"></p>
       </div>
+      <div class="card" id="reminderSettings">
+        <h3>🔔 Recordatorio del diario</h3>
+        <p class="hint">Si un día registras alguna comida y no escribes nada en el diario, la app te pregunta
+          cómo te sientes a la hora que elijas.</p>
+        <label class="check"><input type="checkbox" id="reminderEnabled" /> <span>Recordarme cada día</span></label>
+        <label class="field"><span>Hora</span>
+          <input type="time" id="reminderTime" value="21:00" /></label>
+        <div class="row">
+          <button id="enableNotifBtn" class="btn small">🔔 Activar notificaciones</button>
+          <button id="testReminderBtn" class="btn small ghost">Probar aviso</button>
+        </div>
+        <p id="notifStatus" class="hint" aria-live="polite"></p>
+        <p class="hint">El aviso del sistema llega con la app abierta o en segundo plano. Con la app cerrada
+          no hay aviso (haría falta un servidor de push): al abrirla verás el recordatorio pendiente.
+          En iPhone, las notificaciones solo funcionan con la app añadida a la pantalla de inicio.</p>
+      </div>
       <div class="card">
         <h3>Cómo funciona</h3>
         <ol class="how">
           <li>Registras qué comes (foto y/o texto) y cómo te sienta.</li>
           <li>La IA (o el análisis local) sugiere ingredientes a vigilar.</li>
-          <li>La app te pregunta <em>“¿cómo te sientes?”</em> en las ventanas típicas de cada ingrediente.</li>
+          <li>Cuando te sientas mal, lo escribes en el <em>diario</em>: la app lo cruza con las comidas de las 24 h anteriores.</li>
           <li>El resumen correlaciona ingredientes con malestar y sugiere descartes (“prueba a no comer X”).</li>
         </ol>
       </div>
     </section>
   </main>
 
-  <!-- Modal check-in -->
-  <dialog id="checkinModal" class="modal" aria-labelledby="checkinTitle" closedby="any">
+  <!-- Diario de síntomas -->
+  <dialog id="diaryModal" class="modal" aria-labelledby="diaryTitle" closedby="any">
     <header class="modal-head">
-      <h3 id="checkinTitle">¿Cómo te sientes?</h3>
-      <p id="checkinCtx" class="hint"></p>
+      <h3 id="diaryTitle">¿Cómo te sientes?</h3>
+      <p id="diaryCtx" class="hint"></p>
     </header>
     <div class="modal-body">
+      <label class="field"><span>Cuéntalo con tus palabras</span>
+        <textarea id="diaryText" rows="4" maxlength="1500"
+          placeholder="Ej.: desde media tarde tengo la tripa hinchada y muchos gases…"></textarea></label>
+      <p id="diaryDetected" class="hint" aria-live="polite"></p>
+      <label class="field"><span>Hora</span>
+        <input type="datetime-local" id="diaryAt" /></label>
       <div class="field">
-        <span id="checkinFeelingLabel">Nivel actual</span>
-        <div class="feeling-row" id="checkinFeeling" role="group" aria-labelledby="checkinFeelingLabel">
+        <span id="diaryLevelLabel">Nivel <small>(opcional · toca otra vez para quitarlo)</small></span>
+        <div class="feeling-row" id="diaryLevel" role="group" aria-labelledby="diaryLevelLabel">
           <button type="button" data-v="1" title="Fatal" aria-pressed="false">😖<em>1</em></button>
           <button type="button" data-v="2" title="Mal" aria-pressed="false">🙁<em>2</em></button>
-          <button type="button" data-v="3" class="sel" title="Normal" aria-pressed="true">😐<em>3</em></button>
+          <button type="button" data-v="3" title="Normal" aria-pressed="false">😐<em>3</em></button>
           <button type="button" data-v="4" title="Bien" aria-pressed="false">🙂<em>4</em></button>
           <button type="button" data-v="5" title="Genial" aria-pressed="false">😄<em>5</em></button>
         </div>
       </div>
-      <div class="field"><span>Síntomas <small>(toca para marcar)</small></span>
-        <div id="symptomChips" class="chips"></div>
-      </div>
-      <label class="field"><span>Nota <small>(opcional)</small></span>
-        <input type="text" id="checkinNote" placeholder="Algo más que notes…" /></label>
     </div>
     <footer class="modal-foot row">
-      <button id="checkinSave" class="btn primary">Guardar check-in</button>
-      <button id="checkinSnooze" class="btn ghost">Posponer 30 min</button>
-      <button id="checkinClose" class="btn ghost">Cerrar</button>
+      <button id="diarySave" class="btn primary">Guardar y buscar causas</button>
+      <button id="diaryClose" class="btn ghost">Cancelar</button>
     </footer>
   </dialog>
+
+  <button type="button" id="diaryFab" class="fab" aria-haspopup="dialog" aria-controls="diaryModal">
+    <span aria-hidden="true">📝</span><span class="fab-label">¿Cómo te sientes?</span>
+  </button>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
@@ -245,6 +272,7 @@
   <script src="js/store.js"></script>
   <script src="js/providers.js"></script>
   <script src="js/diet.js"></script>
+  <script src="js/diary.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

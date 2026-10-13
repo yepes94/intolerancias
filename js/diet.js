@@ -1,10 +1,12 @@
 /* Intolerancias · js/diet.js
  *
  * Lógica pura de "Dieta de prueba con IA" (sin DOM, testeable en Node):
- *   - buildSignals(meals, checkins): resumen compacto para la IA + exclusiones.
+ *   - buildSignals(meals, feelings): resumen compacto para la IA + exclusiones.
  *   - localPlan(scope, slot, avoid): plan de ejemplo sin IA que respeta exclusiones.
  *   - conflicts(plan, avoid): platos que mencionan un componente excluido.
- *   - compare(plan, meals, checkins): bienestar con el plan vs. el resto.
+ *   - compare(plan, meals, feelings): bienestar con el plan vs. el resto.
+ *   `feelings` = registros { mealId, doneAt, feeling, symptoms, dietId?, entryId? }
+ *   que genera IntolDiary.feelings a partir del diario.
  * Orientativo, no médico: no diagnostica ni sustituye a un profesional. */
 (function () {
   "use strict";
@@ -94,7 +96,7 @@
       }
     }
     suspects.sort((x, y) => y.rate - x.rate || y.n - x.n);
-    const allDone = checkins.filter((c) => c.doneAt && c.feeling != null);
+    const allDone = uniqueEntries(checkins.filter((c) => c.doneAt && c.feeling != null));
     const recent = meals.slice(0, 15).map((m) => {
       const rel = doneFor(checkins, m.id);
       return {
@@ -214,13 +216,30 @@
     };
   }
 
-  /** Bienestar en check-ins enlazados al plan vs. check-ins sin plan. */
+  // Una entrada del diario enlaza con varias comidas (un registro por comida):
+  // para medias y comparación cuenta una sola vez.
+  function uniqueEntries(list) {
+    const seen = new Set();
+    return list.filter((c) => {
+      const k = c.entryId || c.id;
+      if (!k) return true;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }
+
+  /** Bienestar en registros enlazados al plan vs. registros sin plan
+   *  (registros = Diary.feelings o check-ins antiguos, mismo formato). */
   function compare(plan, meals, checkins) {
     const done = checkins.filter((c) => c.doneAt && c.feeling != null);
     const anyDiet = (c) => !!c.dietId || !!(c.mealId && (meals.find((x) => x.id === c.mealId) || {}).dietId);
+    const key = (c) => c.entryId || c.id;
+    const withIds = new Set(done.filter((c) => linkedTo(plan, c, meals)).map(key));
+    const dietIds = new Set(done.filter(anyDiet).map(key));
     return {
-      with: stat(done.filter((c) => linkedTo(plan, c, meals))),
-      without: stat(done.filter((c) => !anyDiet(c)))
+      with: stat(uniqueEntries(done.filter((c) => withIds.has(key(c))))),
+      without: stat(uniqueEntries(done.filter((c) => !dietIds.has(key(c)))))
     };
   }
 
