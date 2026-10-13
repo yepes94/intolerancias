@@ -1,0 +1,356 @@
+/* Intolerancias · functions/api/analyze.js
+ *
+ * Proxy BYOK "Analizar con IA" en Cloudflare Pages Functions.
+ *
+ * Por qué existe: llamar directo desde el navegador a api.anthropic.com /
+ * api.groq.com exige cabeceras CORS especiales y expone la clave a
+ * bloqueadores/extensiones. Con este proxy same-origin (`/api/analyze`) el
+ * navegador solo habla con la propia app y el CORS desaparece.
+ *
+ * Contrato:
+ *   POST /api/analyze
+ *   { provider: "claude"|"groq"|"hermes"|"cursor",
+ *     action: "analyze"|"ping" (defecto "analyze"),
+ *     key: "<clave BYOK>",
+ *     model: "<modelo claude, opcional>",
+ *     groqModel: "<modelo groq texto, opcional>",
+ *     description: "<texto comida>",
+ *     imageDataUrl: "<data:image/…;base64,…>" | null,
+ *     validIngredients: ["lactosa", …] (opcional; si falta se usa la lista
+ *       de respaldo de abajo, que debe coincidir con js/data.js) }
+ *
+ *   200 { ok: true, provider, action, result } donde result es
+ *       { ingredients, summary, checkinQuestion } (analyze) o "ok" (ping).
+ *   4xx/5xx { ok: false, kind, message } con la misma taxonomía que el
+ *       frontend (js/providers.js): auth | network | badjson | ratelimit |
+ *       badrequest | server | notimpl | unknown.
+ *
+ * Privacidad (importante):
+ * - La clave viaja SOLO en el cuerpo de la petición y se usa para firmar la
+ *   llamada al proveedor. NUNCA se guarda (sin KV/D1/variables), NUNCA se
+ *   escribe en logs y NUNCA se devuelve en la respuesta.
+ * - `Cache-Control: no-store` en todas las respuestas para que nada se
+ *   cachee con la clave dentro.
+ *
+ * Sin P-Stack: solo Pages Functions estándar, sin servicios extra.
+ */
+
+const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
+const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
+
+const DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
+const DEFAULT_GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+
+// Respaldo si el frontend no envía validIngredients. Debe coincidir con
+// ONSET_WINDOWS en js/data.js (solo se usa para redactar el prompt y filtrar).
+const FALLBACK_INGREDIENTS = [
+  "lactosa", "gluten", "fructosa", "huevo", "frutosSecos",
+  "soja", "picante", "alcohol", "cafeina", "histamina",
+];
+
+function foodPrompt(description, hasImage, validKeys) {
+  const keys = (validKeys && validKeys.length ? validKeys : FALLBACK_INGREDIENTS).join(", ");
+  return (
+    "Eres un asistente de diario alimentario personal. NO eres medico y NO diagnosticas. " +
+    "Analiza esta comida y responde UNICAMENTE con un objeto JSON, sin nada mas: " +
+    "ni saludos, ni explicaciones antes o despues, ni bloques markdown (nada de ```), solo el objeto. " +
+    '{"ingredients": [<claves de: ' + keys + ">], " +
+    '"summary": "<1-2 frases, tono cercano, que vigilar y por que>", ' +
+    '"checkinQuestion": "<pregunta corta tipo como te sientes>"}. ' +
+    "Usa comillas dobles y sin comas finales, para que sea JSON.parse valido. " +
+    "Comida: " + (description || "(solo foto)") + (hasImage ? " [incluye foto]" : "") +
+    "\nRecuerda: anade que es orientativo y no sustituye una prueba medica real."
+  );
+}
+
+// ---- Parseo robusto (réplica mínima del de js/providers.js) ----
+function stripFences(text) {
+  const s = String(text || "");
+  const inner = [];
+  const re = /```(?:json)?\s*([\s\S]*?)```/gi;
+  let m;
+  while ((m = re.exec(s))) inner.push(m[1]);
+  if (inner.length) return inner.join("\n");
+  return s.replace(/```/g, " ");
+}
+
+function balancedCandidates(text) {
+  const out = [];
+  let i = 0;
+  while (i < text.length) {
+    const start = text.indexOf("{", i);
+    if (start < 0) break;
+    let depth = 0, inStr = false, esc = false;
+    let closed = false;
+    for (let j = start; j < text.length; j++) {
+      const c = text[j];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (c === "\\") esc = true;
+        else if (c === '"') inStr = false;
+      } else if (c === '"') inStr = true;
+      else if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) { out.push(text.slice(start, j + 1)); i = j + 1; closed = true; break; }
+      }
+    }
+    if (!closed) break;
+  }
+  return out;
+}
+
+function repairJson(text) {
+  return String(text).replace(/,(\s*[}\]])/g, "$1").replace(/;\s*$/, "");
+}
+
+function tryParseOne(candidate) {
+  try { return JSON.parse(candidate); } catch { /* sigue */ }
+  try { return JSON.parse(repairJson(candidate)); } catch { /* sigue */ }
+  if (!candidate.includes('"') && candidate.includes("'")) {
+    const swapped = candidate.replace(/'/g, '"');
+    try { return JSON.parse(swapped); } catch { /* sigue */ }
+    try { return JSON.parse(repairJson(swapped)); } catch { /* sigue */ }
+  }
+  return null;
+}
+
+function normalizeAnalysis(obj, validKeys) {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+  const valid = validKeys && validKeys.length ? validKeys : FALLBACK_INGREDIENTS;
+  const ingredients = Array.isArray(obj.ingredients)
+    ? obj.ingredients.filter((x) => typeof x === "string" && valid.includes(x.trim())).map((x) => x.trim())
+    : (typeof obj.ingredients === "string"
+      ? obj.ingredients.split(/[,;|\n]/).map((x) => x.trim()).filter((x) => valid.includes(x))
+      : []);
+  const seen = new Set();
+  const dedup = ingredients.filter((x) => !seen.has(x) && (seen.add(x), true));
+  const summary = typeof obj.summary === "string" ? obj.summary.trim()
+    : (typeof obj.resumen === "string" ? obj.resumen.trim() : "");
+  const checkinQuestion = typeof obj.checkinQuestion === "string" ? obj.checkinQuestion.trim()
+    : (typeof obj.pregunta === "string" ? obj.pregunta.trim() : "");
+  if (!summary && !dedup.length && !checkinQuestion) return null;
+  return {
+    ingredients: dedup,
+    summary: summary || "La IA no dio detalles; vigila cómo te sientes en las próximas horas.",
+    checkinQuestion: checkinQuestion || "¿Cómo te sientes?",
+  };
+}
+
+function parseAnalysisJson(text, providerLabel, validKeys) {
+  const raw = String(text || "");
+  if (!raw.trim()) {
+    return { error: { kind: "badjson", message: `${providerLabel} devolvió una respuesta vacía.` } };
+  }
+  const defenced = stripFences(raw);
+  let obj = tryParseOne(defenced.trim());
+  if (!obj) {
+    for (const cand of balancedCandidates(defenced)) {
+      obj = tryParseOne(cand.trim());
+      if (obj) break;
+    }
+  }
+  const norm = obj && normalizeAnalysis(obj, validKeys);
+  if (!norm) {
+    return { error: { kind: "badjson", message: `${providerLabel} respondió pero no en el formato esperado.` } };
+  }
+  return { result: norm };
+}
+
+// ---- Respuestas ----
+function json(data, status) {
+  return new Response(JSON.stringify(data), {
+    status: status || 200,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+function fail(kind, message, status) {
+  return json({ ok: false, kind, message }, status || 400);
+}
+
+function upstreamError(providerLabel, status, bodyText, statusText) {
+  const head = (bodyText || "").slice(0, 200) || statusText || ("HTTP " + status);
+  if (status === 401 || status === 403) {
+    return fail("auth",
+      `${providerLabel} rechazó la clave (HTTP ${status}). Revisa que la pegaste ` +
+      `completa en Ajustes y que no caducó. Detalle: ${head}`, status);
+  }
+  if (status === 429) {
+    return fail("ratelimit",
+      `${providerLabel} dice que hay demasiadas peticiones o sin cuota (HTTP 429). ` +
+      `Espera unos minutos o revisa tu plan/límites. Detalle: ${head}`, 429);
+  }
+  if (status === 400) {
+    return fail("badrequest",
+      `${providerLabel} rechazó la petición (HTTP 400): revisa el modelo en Ajustes ` +
+      `o quita la foto si el modelo no tiene visión. Detalle: ${head}`, 400);
+  }
+  if (status >= 500) {
+    return fail("server",
+      `${providerLabel} falla en su lado (HTTP ${status}). Reintenta en unos minutos; ` +
+      `el análisis local sigue funcionando. Detalle: ${head}`, 502);
+  }
+  return fail("unknown", `${providerLabel} ${status}: ${head}`, status);
+}
+
+// ---- Proveedores (lado servidor) ----
+async function claudeCall({ action, key, model, description, imageDataUrl, validKeys }) {
+  const body = action === "ping"
+    ? { model: model || DEFAULT_CLAUDE_MODEL, max_tokens: 20, messages: [{ role: "user", content: "Responde solo: ok" }] }
+    : { model: model || DEFAULT_CLAUDE_MODEL, max_tokens: 500, messages: [{ role: "user", content: claudeContent(description, imageDataUrl) }] };
+  let res;
+  try {
+    res = await fetch(CLAUDE_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return fail("network", "No se pudo contactar con Claude desde el proxy (red). Reintenta en unos minutos.", 502);
+  }
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    return upstreamError("Claude", res.status, t, res.statusText);
+  }
+  if (action === "ping") return json({ ok: true, provider: "claude", action: "ping", result: "ok" });
+  const data = await res.json().catch(() => ({}));
+  const text = (data.content || []).map((b) => b.text || "").join("");
+  const parsed = parseAnalysisJson(text, "Claude", validKeys);
+  if (parsed.error) return fail("badjson", parsed.error.message + " Pulsa de nuevo «Analizar con IA».", 502);
+  return json({ ok: true, provider: "claude", action: "analyze", result: parsed.result });
+}
+
+function claudeContent(description, imageDataUrl) {
+  const content = [];
+  if (imageDataUrl) {
+    const m = String(imageDataUrl).match(/^data:(image\/\w+);base64,(.+)$/);
+    if (m) content.push({ type: "image", source: { type: "base64", media_type: m[1], data: m[2] } });
+  }
+  content.push({ type: "text", text: foodPrompt(description, !!imageDataUrl) });
+  return content;
+}
+
+async function groqCall({ action, key, groqModel, description, imageDataUrl, validKeys }) {
+  if (action === "ping") {
+    let res;
+    try {
+      res = await fetch(GROQ_MODELS_URL, { headers: { authorization: "Bearer " + key } });
+    } catch {
+      return fail("network", "No se pudo contactar con Groq desde el proxy (red). Reintenta en unos minutos.", 502);
+    }
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      return upstreamError("Groq", res.status, t, res.statusText);
+    }
+    return json({ ok: true, provider: "groq", action: "ping", result: "ok" });
+  }
+  const hasImage = !!imageDataUrl;
+  const model = hasImage ? DEFAULT_GROQ_VISION_MODEL : (groqModel || DEFAULT_GROQ_MODEL);
+  const content = [];
+  if (hasImage) content.push({ type: "image_url", image_url: { url: imageDataUrl } });
+  content.push({ type: "text", text: foodPrompt(description, hasImage, validKeys) });
+  let res;
+  try {
+    res = await fetch(GROQ_CHAT_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer " + key },
+      body: JSON.stringify({
+        model,
+        max_tokens: 500,
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: "Respondes SOLO con JSON válido, sin texto adicional." },
+          { role: "user", content },
+        ],
+      }),
+    });
+  } catch {
+    return fail("network", "No se pudo contactar con Groq desde el proxy (red). Reintenta en unos minutos.", 502);
+  }
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    return upstreamError("Groq", res.status, t, res.statusText);
+  }
+  const data = await res.json().catch(() => ({}));
+  const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "";
+  const parsed = parseAnalysisJson(text, "Groq", validKeys);
+  if (parsed.error) return fail("badjson", parsed.error.message + " Pulsa de nuevo «Analizar con IA».", 502);
+  return json({ ok: true, provider: "groq", action: "analyze", result: parsed.result });
+}
+
+// ---- Entrada Pages Functions ----
+export async function onRequest(context) {
+  const { request } = context;
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+  }
+
+  if (request.method === "GET") {
+    // Salud de la ruta (sin clave): útil para verificar el deploy en preview.
+    return json({ ok: true, service: "analyze-proxy", providers: ["claude", "groq"] });
+  }
+
+  if (request.method !== "POST") {
+    return fail("badrequest", "Usa POST con { provider, key, … }.", 405);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return fail("badrequest", "El cuerpo debe ser JSON con { provider, action, key, … }.", 400);
+  }
+
+  const provider = String((body && body.provider) || "").toLowerCase();
+  const action = String((body && body.action) || "analyze").toLowerCase();
+  const key = String((body && body.key) || "").trim();
+
+  if (!["claude", "groq", "hermes", "cursor"].includes(provider)) {
+    return fail("badrequest", "Proveedor desconocido: usa claude, groq, hermes o cursor.", 400);
+  }
+  if (!["analyze", "ping"].includes(action)) {
+    return fail("badrequest", "Acción desconocida: usa analyze o ping.", 400);
+  }
+  if (!key) {
+    return fail("auth", "Falta la clave BYOK (viaja solo en esta petición, no se guarda). Pégala en Ajustes.", 401);
+  }
+  if (provider === "hermes" || provider === "cursor") {
+    const label = provider === "hermes" ? "Hermes" : "Cursor";
+    return fail("notimpl", `Proveedor ${label} aún no implementado.`, 501);
+  }
+
+  const validKeys = Array.isArray(body.validIngredients) && body.validIngredients.length
+    ? body.validIngredients.filter((x) => typeof x === "string")
+    : FALLBACK_INGREDIENTS;
+
+  const args = {
+    action,
+    key,
+    model: String(body.model || "").trim(),
+    groqModel: String(body.groqModel || "").trim(),
+    description: String(body.description || ""),
+    imageDataUrl: body.imageDataUrl || null,
+    validKeys,
+  };
+
+  // Nota: sin console.log del body ni de la key. Solo errores genéricos
+  // (proveedor + acción + estado) para no filtrar nada sensible.
+  try {
+    if (provider === "claude") return await claudeCall(args);
+    return await groqCall(args);
+  } catch (err) {
+    return fail("unknown", "El proxy falló de forma inesperada. Reintenta; el análisis local sigue funcionando.", 500);
+  }
+}

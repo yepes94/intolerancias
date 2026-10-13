@@ -80,8 +80,9 @@
           <button id="analyzeBtn" class="btn">🤖 Analizar con IA</button>
         </div>
         <p class="hint">“Analizar con IA” usa tu clave (BYOK) para detectar posibles ingredientes.
-          Sin clave funciona el análisis local por palabras clave. Nunca sale nada de tu navegador
-          salvo la llamada directa al proveedor de IA que elijas.</p>
+          Sin clave funciona el análisis local por palabras clave. Con clave, el navegador solo habla
+          con el proxy <code>/api/analyze</code> de esta misma app, que reenvía al proveedor que elijas:
+          la clave viaja solo en esa petición y nunca se guarda en el servidor ni en logs.</p>
         <div id="analysisResult" class="analysis hidden" aria-live="polite"></div>
       </div>
 
@@ -127,7 +128,8 @@
     <section id="tab-ajustes" class="panel" role="tabpanel">
       <h2>Ajustes · Claves BYOK</h2>
       <p class="hint">Tus claves se guardan <strong>solo en el localStorage de este navegador</strong>.
-        Nunca se commitean ni salen a ningún servidor propio (no hay backend).
+        Nunca se commitean. Al analizar, viajan solo en la petición al proxy
+        <code>/api/analyze</code> (misma app), que las reenvía al proveedor sin guardarlas ni registrarlas.
         Prioridad automática: <strong>Claude &gt; Hermes &gt; Groq &gt; Cursor</strong>.</p>
       <div class="card">
         <div id="providerStatus"></div>
