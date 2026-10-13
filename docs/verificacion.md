@@ -41,9 +41,10 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       “🧪 Prueba a no comer lactosa…”.
 - [ ] **Exportar datos** descarga un JSON; **Borrar todo** limpia localStorage + IndexedDB.
 
-## 5. IA con Claude BYOK (2 min, opcional con clave)
+## 5. IA con Claude o Groq BYOK (2 min, opcional con clave)
 
-- [ ] Pestaña **⚙️ Ajustes**: pega tu `sk-ant-…` → **Guardar claves** → **Probar conexión** → ✔ responde.
+- [ ] Pestaña **⚙️ Ajustes**: pega tu `sk-ant-…` (Claude) o tu `gsk-…` gratis de
+  <https://console.groq.com/keys> → **Guardar claves** → **Probar conexión** → ✔ responde.
 - [ ] En Registrar, con foto y/o descripción, pulsa **🤖 Analizar con IA**:
       verás resumen + pregunta de seguimiento con disclaimer no-médico.
 - [ ] Guarda la comida: los ingredientes detectados por IA llevan pastilla azul (`src-ia`).
@@ -53,7 +54,7 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 ## 6. Sin clave (1 min)
 
 - [ ] Sin claves, “Analizar con IA” usa el **análisis local** y lo indica explícitamente.
-- [ ] Proveedores Hermes/Groq/Cursor muestran “pendiente de implementar” sin romper nada.
+- [ ] Proveedores Hermes/Cursor muestran “pendiente de implementar” sin romper nada.
 
 ## Criterio de aceptación
 

@@ -91,7 +91,12 @@
     saveCheckins(c) { save(LS_CHECKINS, c); },
     getSettings() {
       return Object.assign(
-        { keys: {}, preferred: "auto", model: window.IntolData.DEFAULT_MODEL },
+        {
+          keys: {},
+          preferred: "auto",
+          model: window.IntolData.DEFAULT_MODEL,
+          groqModel: (window.IntolData && window.IntolData.GROQ_MODEL) || "llama-3.3-70b-versatile"
+        },
         load(LS_SETTINGS, {})
       );
     },

@@ -26,12 +26,18 @@ Plan de verificación manual paso a paso: [docs/verificacion.md](docs/verificaci
 Pestaña **⚙️ Ajustes** → pega tu clave → se guarda **solo en el localStorage** de tu navegador.
 Prioridad automática: **Claude > Hermes > Groq > Cursor**.
 
-| Proveedor | Estado MVP |
+| Proveedor | Estado |
 |---|---|
 | Claude (Anthropic, visión + chat) | ✅ Implementado |
 | Hermes | 🔧 Stub (misma interfaz, pendiente) |
-| Groq | 🔧 Stub (misma interfaz, pendiente) |
+| Groq (texto + visión, gratis) | ✅ Implementado |
 | Cursor | 🔧 Stub (misma interfaz, pendiente) |
+
+- **Groq**: crea tu clave gratis en <https://console.groq.com/keys> (empieza por `gsk-…`),
+  pégala en Ajustes → **Guardar claves** → **Probar conexión**. Sin foto usa el
+  **Modelo Groq** configurable (por defecto `llama-3.3-70b-versatile`); con foto usa
+  visión automáticamente.
+- **Claude**: clave en <https://console.anthropic.com/settings/keys> (`sk-ant-…`).
 
 Sin clave, funciona el **análisis local por palabras clave** (offline). Para añadir un
 proveedor basta implementar `ping` + `analyzeFood` en `js/providers.js`, sin refactorizar.
@@ -40,10 +46,10 @@ proveedor basta implementar `ping` + `analyzeFood` en `js/providers.js`, sin ref
 
 ```text
 index.html          UI + pestañas (Registrar · Timeline · Resumen · Ajustes)
-styles.css          estilos mobile-first, sin dependencias
+styles.css          estilos mobile-first, tema claro/oscuro automático, sin dependencias
 js/data.js          ventanas de onset, síntomas, keywords, disclaimer
 js/store.js         localStorage + IndexedDB + compresión de fotos
-js/providers.js     abstracción BYOK (Claude real, resto stubs)
+js/providers.js     abstracción BYOK (Claude y Groq reales, resto stubs)
 js/app.js           UI, recordatorios, timeline, resumen
 docs/verificacion.md  plan de verificación manual
 ```
