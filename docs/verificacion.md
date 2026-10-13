@@ -150,6 +150,13 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       entran en *Exportar datos* y *Borrar todo* los elimina.
 - [ ] **Disclaimer** visible en la pestaña y en cada plan (médico, nutricionista, pruebas de intolerancia).
 - [ ] **Móvil 375px**: sin scroll horizontal en la pestaña Dieta ni en las tarjetas del plan.
+- [ ] **Thinking de Claude (familia 5)**: `node tests/claude-thinking.test.mjs` → todo OK
+      (respuesta `thinking`+`text` → solo se lee `text`; Sonnet 5.5 → `between_tools`,
+      Sonnet 5/Haiku 5.5/Opus 5 → `disabled`, Opus 5.5/Fable → solo `effort: "low"`,
+      4.x sin tocar; `max_tokens` 4000 día / 2500 comida y análisis). Con BYOK real en la
+      preview: Ajustes → modelo `claude-sonnet-5-5` (u Opus 5.5) → **Pedir dieta** *Día completo*
+      → 4 comidas, sin «Se cortó por límite». Si aun así se corta, el error dice
+      «el razonamiento interno del modelo agotó el límite».
 
 ## Criterio de aceptación
 
