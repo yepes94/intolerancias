@@ -655,8 +655,8 @@ input[type="file"]::file-selector-button {
 .ai-analysis p { margin: 0 0 var(--space-xs); }
 .ai-analysis .field { margin-block-end: var(--space-xs); }
 
-/* ---------- upcoming check-ins ---------- */
-.checkin-list {
+/* ---------- diario de síntomas ---------- */
+.diary-recent {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
@@ -665,33 +665,154 @@ input[type="file"]::file-selector-button {
   list-style: none;
 }
 
-.checkin-list li {
+.diary-recent li.empty {
+  padding: var(--space-xs) var(--space-s);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-s);
+  font-size: var(--step--1);
+  text-align: center;
+}
+
+.diary-recent-item {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-xs) var(--space-s);
+  flex-direction: column;
+  gap: 0.1rem;
+  inline-size: 100%;
   padding: var(--space-xs) var(--space-s);
   border: 1px solid var(--line);
   border-radius: var(--radius-s);
   background: var(--field);
+  color: inherit;
+  font: inherit;
+  font-size: var(--step--1);
+  text-align: start;
+  cursor: pointer;
+}
+
+.diary-recent-item time { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.diary-recent-item span:not(.hint) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.diary-entry { border-inline-start: 4px solid var(--brand); }
+.diary-entry.is-bad { border-inline-start-color: var(--accent); }
+
+.diary-icon { flex: none; font-size: 1.5rem; line-height: 1.2; }
+
+.diary-level {
+  flex: none;
+  margin-inline-start: auto;
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+
+.diary-text {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.diary-analysis {
+  padding: var(--space-s) var(--space-m);
+  border-inline-start: 4px solid var(--brand);
+  border-start-end-radius: var(--radius-s);
+  border-end-end-radius: var(--radius-s);
+  background: var(--brand-subtle);
   font-size: var(--step--1);
 }
 
-.checkin-list li.empty { border-style: dashed; background: transparent; justify-content: center; }
-.checkin-list li.overdue { border-color: var(--accent); background: var(--accent-subtle); }
+.diary-analysis.is-ia { border-inline-start-color: var(--ia); background: var(--ia-subtle); }
+.diary-analysis.is-pending { border-inline-start-color: var(--accent); background: var(--accent-subtle); }
+.diary-analysis p { margin: 0 0 var(--space-xs); }
+.diary-analysis p:last-child { margin-block-end: 0; }
 
-.checkin-text { flex: 1 1 14rem; }
-
-.checkin-text strong { font-variant-numeric: tabular-nums; }
-
-.checkin-meal {
-  display: block;
-  white-space: nowrap;
-  overflow: clip;
-  text-overflow: ellipsis;
+.diary-causes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-xs);
+  padding-inline-start: 1.25rem;
 }
 
-.checkin-list li > .btn { flex: none; margin-inline-start: auto; }
+.diary-urgent {
+  padding: var(--space-xs) var(--space-s);
+  border-radius: var(--radius-s);
+  background: var(--bad-subtle);
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.pill.src-sym { background: var(--accent-subtle); color: var(--on-accent); }
+.pill.lk-alta { background: var(--bad-subtle); color: var(--bad); }
+.pill.lk-media { background: var(--accent-subtle); color: var(--on-accent); }
+.pill.lk-baja { background: var(--sunken); color: var(--muted); }
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-block-end: var(--space-s);
+  cursor: pointer;
+}
+
+.check input { inline-size: 1.15rem; block-size: 1.15rem; accent-color: var(--brand); }
+
+/* Recordatorio pendiente (21:00 o día anterior sin contar) */
+.reminder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-block-start: var(--space-s);
+  padding: var(--space-s) var(--space-m);
+  border: 1px solid color-mix(in oklch, var(--accent) 55%, transparent);
+  border-radius: var(--radius);
+  background: var(--accent-subtle);
+  font-size: var(--step--1);
+}
+
+.reminder p { margin: 0; font-weight: 600; }
+
+/* Botón flotante del diario: siempre a mano, por encima de la barra inferior si la hay (--nav-h). */
+:root { --fab-offset: var(--nav-h, 0px); }
+
+.fab {
+  position: fixed;
+  z-index: 20;
+  inset-inline-end: max(var(--space-m), env(safe-area-inset-right, 0px));
+  inset-block-end: calc(var(--fab-offset, 0px) + max(var(--space-m), env(safe-area-inset-bottom, 0px)));
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-block-size: 3rem;
+  padding: 0.6rem 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--on-brand);
+  font: inherit;
+  font-weight: 700;
+  box-shadow: 0 8px 24px -8px oklch(0% 0 none / 0.45);
+  cursor: pointer;
+}
+
+.fab > span[aria-hidden] { font-size: 1.2em; line-height: 1; }
+
+@media (hover: hover) and (pointer: fine) {
+  .fab:hover { background: var(--brand-hover); }
+}
+
+.fab:active { scale: 0.97; }
+
+main { padding-block-end: calc(var(--space-l) + 4rem + var(--fab-offset, 0px)); }
+
+/* El toast sube por encima del botón flotante. */
+:root:has(.fab) .toast {
+  inset-block-end: calc(var(--fab-offset, 0px) + 4.5rem + env(safe-area-inset-bottom, 0px));
+}
 
 /* ---------- timeline ---------- */
 .timeline {
