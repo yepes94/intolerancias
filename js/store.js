@@ -1,0 +1,111 @@
+/* Intolerancias · js/store.js
+ * Persistencia 100% local: localStorage (comidas, check-ins, ajustes)
+ * + IndexedDB (fotos a tamaño completo). Sin backend. */
+(function () {
+  "use strict";
+
+  const LS_MEALS = "intol.meals.v1";
+  const LS_CHECKINS = "intol.checkins.v1";
+  const LS_SETTINGS = "intol.settings.v1";
+
+  const IDB_NAME = "intol-photos";
+  const IDB_STORE = "photos";
+
+  function load(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch { return fallback; }
+  }
+  function save(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); }
+    catch (e) { console.warn("localStorage lleno o no disponible", e); }
+  }
+
+  const uid = () =>
+    (crypto.randomUUID ? crypto.randomUUID() : "id-" + Date.now() + "-" + Math.random().toString(36).slice(2));
+
+  // ---- IndexedDB (fotos) ----
+  function openDb() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function photoPut(id, dataUrl) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(dataUrl, id);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+  async function photoGet(id) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readonly");
+      const rq = tx.objectStore(IDB_STORE).get(id);
+      rq.onsuccess = () => { db.close(); resolve(rq.result || null); };
+      rq.onerror = () => reject(rq.error);
+    });
+  }
+  async function photoDel(id) {
+    try {
+      const db = await openDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).delete(id);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch { /* sin foto = sin problema */ }
+  }
+
+  // ---- Compresión de foto (canvas) ----
+  function compressImage(file, maxDim, quality) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        c.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("No se pudo leer la imagen")); };
+      img.src = url;
+    });
+  }
+
+  // ---- API pública ----
+  const Store = {
+    getMeals() { return load(LS_MEALS, []); },
+    saveMeals(m) { save(LS_MEALS, m); },
+    getCheckins() { return load(LS_CHECKINS, []); },
+    saveCheckins(c) { save(LS_CHECKINS, c); },
+    getSettings() {
+      return Object.assign(
+        { keys: {}, preferred: "auto", model: window.IntolData.DEFAULT_MODEL },
+        load(LS_SETTINGS, {})
+      );
+    },
+    saveSettings(s) { save(LS_SETTINGS, s); },
+    uid, photoPut, photoGet, photoDel, compressImage,
+    wipe() {
+      localStorage.removeItem(LS_MEALS);
+      localStorage.removeItem(LS_CHECKINS);
+      try {
+        const req = indexedDB.deleteDatabase(IDB_NAME);
+        req.onsuccess = req.onerror = () => {};
+      } catch { /* noop */ }
+    }
+  };
+
+  window.IntolStore = Store;
+})();

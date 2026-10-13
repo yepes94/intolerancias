@@ -2,175 +2,203 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Intolerancias · Asistente IA + API Keys</title>
-  <meta name="description" content="Asistente de intolerancias alimentarias con gestión de API keys de Groq, OpenAI, Anthropic, Gemini y más." />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#f7f4ec" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#1c1a16" media="(prefers-color-scheme: dark)" />
+  <meta name="description" content="Intolerancias — diario personal de comidas y bienestar. 100% local, sin cuentas." />
+  <title>Intolerancias · Diario de comidas y bienestar</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌿</text></svg>" />
   <link rel="stylesheet" href="styles.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
-<body>
-  <div class="bg-glow" aria-hidden="true"></div>
-
-  <header class="topbar">
+<body class="content-grid">
+  <header class="app-header full-width">
     <div class="brand">
-      <div class="brand-logo">🌾</div>
+      <span class="brand-mark" aria-hidden="true">🌿</span>
       <div>
-        <h1>Intolerancias <span>· Asistente IA</span></h1>
-        <p>Consulta ingredientes y gestiona tus claves de IA en un solo lugar</p>
+        <h1>Intolerancias</h1>
+        <p class="tagline">Qué como → cómo me sienta</p>
       </div>
     </div>
-    <nav class="tabs" role="tablist">
-      <button class="tab active" data-tab="asistente" role="tab">💬 Asistente</button>
-      <button class="tab" data-tab="keys" role="tab">🔑 API Keys <span class="badge" id="keysBadge">0/11</span></button>
+    <nav class="tabs" role="tablist" aria-label="Secciones">
+      <button class="tab active" data-tab="registrar" role="tab" aria-selected="true" aria-controls="tab-registrar">
+        <span class="tab-icon" aria-hidden="true">＋</span><span class="tab-label">Registrar</span>
+      </button>
+      <button class="tab" data-tab="timeline" role="tab" aria-selected="false" aria-controls="tab-timeline">
+        <span class="tab-icon" aria-hidden="true">🕘</span><span class="tab-label">Timeline</span>
+        <span class="badge hidden" id="pendingBadge"></span>
+      </button>
+      <button class="tab" data-tab="resumen" role="tab" aria-selected="false" aria-controls="tab-resumen">
+        <span class="tab-icon" aria-hidden="true">📊</span><span class="tab-label">Resumen</span>
+      </button>
+      <button class="tab" data-tab="ajustes" role="tab" aria-selected="false" aria-controls="tab-ajustes">
+        <span class="tab-icon" aria-hidden="true">⚙️</span><span class="tab-label">Ajustes</span>
+      </button>
     </nav>
-    <div class="topbar-actions">
-      <button class="theme-btn" id="themeBtn" title="Cambiar tema">🌙</button>
-    </div>
   </header>
 
+  <aside class="disclaimer" role="note">
+    <span class="disclaimer-icon" aria-hidden="true">⚠️</span>
+    <p><strong>App orientativa, no médica.</strong> Las ventanas de aparición por ingrediente son
+      orientativas y no diagnostican nada. Ante síntomas persistentes, pide una
+      <strong>prueba médica real</strong> (p. ej. test de intolerancias con un profesional sanitario).</p>
+  </aside>
+
   <main>
-    <!-- ══════════ ASISTENTE ══════════ -->
-    <section id="view-asistente" class="view active">
-      <div class="grid-2">
-        <div class="card chat-card">
-          <div class="card-head">
-            <h2>Pregunta sobre intolerancias</h2>
-            <p>Ej.: “¿Este pan sin gluten lleva lactosa?” o “¿Qué E-XXX contienen leche?”</p>
-          </div>
+    <!-- ============ REGISTRAR ============ -->
+    <section id="tab-registrar" class="panel active" role="tabpanel">
+      <h2>¿Qué has comido?</h2>
 
-          <div class="provider-bar">
-            <label>
-              Proveedor
-              <select id="chatProvider"></select>
-            </label>
-            <label>
-              Modelo
-              <select id="chatModel"></select>
-            </label>
-            <div class="provider-status" id="chatProviderStatus"></div>
-          </div>
+      <div class="card">
+        <label class="field">
+          <span>Descripción <small>(ej. "pizza con queso y cerveza")</small></span>
+          <textarea id="mealDesc" rows="3" placeholder="Describe lo que comiste o bebiste…"></textarea>
+        </label>
 
-          <div class="chat-log" id="chatLog">
-            <div class="msg assistant">
-              <div class="avatar">🤖</div>
-              <div class="bubble">
-                <strong>¡Hola! Soy tu asistente de intolerancias.</strong><br />
-                Configura tu API key de <strong>Groq</strong> (gratis y rapidísima) o de cualquier otro
-                proveedor en la pestaña <button class="linklike" data-goto="keys">🔑 API Keys</button> y
-                luego pregúntame lo que quieras.
-              </div>
-            </div>
-          </div>
-
-          <form class="chat-input" id="chatForm">
-            <input id="chatText" type="text" autocomplete="off"
-              placeholder="Escribe tu pregunta… ej. ¿La avena tiene gluten?" />
-            <button type="submit" id="chatSend">Enviar ➤</button>
-          </form>
-          <p class="hint">⚠️ Esto no es consejo médico. Consulta siempre a un profesional sanitario.</p>
+        <label class="field">
+          <span>Foto <small>(opcional, se comprime y guarda solo en tu navegador)</small></span>
+          <input type="file" id="mealPhoto" accept="image/*" />
+        </label>
+        <div id="photoPreviewWrap" class="photo-preview hidden">
+          <img id="photoPreview" alt="Vista previa de la comida" />
+          <button type="button" id="photoClear" class="btn ghost small">Quitar foto</button>
         </div>
 
-        <aside class="card side-card">
-          <h3>🚀 Empieza en 1 minuto</h3>
-          <ol class="steps">
-            <li>Ve a <button class="linklike" data-goto="keys">🔑 API Keys</button>.</li>
-            <li>Pulsa <strong>Añadir</strong> en <strong>Groq</strong> (gratis).</li>
-            <li>Crea tu clave en <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> y pégala (empieza por <code>gsk_</code>).</li>
-            <li>Vuelve aquí, elige proveedor <strong>Groq</strong> y pregunta.</li>
-          </ol>
-          <div class="quick-providers" id="quickProviders"></div>
-          <div class="tip">
-            💡 <strong>Consejo:</strong> Groq es gratis y muy rápido para empezar.
-            Añade también OpenAI, Anthropic o Gemini si quieres comparar respuestas.
+        <div class="field">
+          <span id="mealFeelingLabel">¿Cómo te sienta <em>ahora mismo</em>?</span>
+          <div class="feeling-row" id="mealFeeling" role="group" aria-labelledby="mealFeelingLabel">
+            <button type="button" data-v="1" title="Fatal" aria-pressed="false">😖<em>1</em></button>
+            <button type="button" data-v="2" title="Mal" aria-pressed="false">🙁<em>2</em></button>
+            <button type="button" data-v="3" class="sel" title="Normal" aria-pressed="true">😐<em>3</em></button>
+            <button type="button" data-v="4" title="Bien" aria-pressed="false">🙂<em>4</em></button>
+            <button type="button" data-v="5" title="Genial" aria-pressed="false">😄<em>5</em></button>
           </div>
-          <div class="actions-row">
-            <button class="btn ghost" id="exportEnvBtn2">📤 Exportar .env</button>
-            <button class="btn ghost" data-goto="keys">Gestionar claves →</button>
-          </div>
-        </aside>
+        </div>
+
+        <div class="row">
+          <button id="saveMealBtn" class="btn primary">Guardar comida</button>
+          <button id="analyzeBtn" class="btn">🤖 Analizar con IA</button>
+        </div>
+        <p class="hint">“Analizar con IA” usa tu clave (BYOK) para detectar posibles ingredientes.
+          Sin clave funciona el análisis local por palabras clave. Nunca sale nada de tu navegador
+          salvo la llamada directa al proveedor de IA que elijas.</p>
+        <div id="analysisResult" class="analysis hidden" aria-live="polite"></div>
+      </div>
+
+      <div class="card">
+        <h3>⏰ Próximos check-ins <small>“¿cómo te sientes?”</small></h3>
+        <p class="hint">Al guardar una comida se programan avisos en las ventanas típicas de aparición
+          de cada ingrediente sospechoso (solo orientativo).</p>
+        <ul id="upcomingList" class="checkin-list"></ul>
+        <div class="row">
+          <button id="enableNotifBtn" class="btn small">🔔 Activar notificaciones</button>
+          <button id="quickCheckinBtn" class="btn small ghost">Registrar cómo estoy ahora</button>
+        </div>
       </div>
     </section>
 
-    <!-- ══════════ API KEYS ══════════ -->
-    <section id="view-keys" class="view">
-      <div class="card toolbar-card">
-        <div>
-          <h2>🔑 Tus API keys</h2>
-          <p>Se guardan <strong>solo en tu navegador</strong> (localStorage). Nada se envía a ningún servidor propio.
-          Para producción usa el <code>.env</code> del servidor (<code>npm start</code>).</p>
-        </div>
-        <div class="toolbar">
-          <input id="searchProvider" type="search" placeholder="🔍 Buscar proveedor…" />
-          <button class="btn ghost" id="exportEnvBtn">📤 Exportar .env</button>
-          <button class="btn ghost" id="exportJsonBtn">⬇️ Exportar JSON</button>
-          <button class="btn ghost" id="importJsonBtn">⬆️ Importar</button>
-          <input type="file" id="importFile" accept="application/json" hidden />
-          <button class="btn danger-ghost" id="clearAllBtn">🗑️ Borrar todas</button>
+    <!-- ============ TIMELINE ============ -->
+    <section id="tab-timeline" class="panel" role="tabpanel">
+      <h2>Timeline comida → síntomas</h2>
+      <div id="timeline" class="timeline"></div>
+    </section>
+
+    <!-- ============ RESUMEN ============ -->
+    <section id="tab-resumen" class="panel" role="tabpanel">
+      <h2>Resumen: qué te sienta bien / mal</h2>
+      <p class="hint">Correlación simple y local: agrupa tus check-ins por ingrediente sospechoso.
+        Orientativo, no diagnóstico.</p>
+      <div id="suggestions" class="suggestions"></div>
+      <div class="cols">
+        <div class="card verdict verdict-good"><h3>✅ Sienta bien</h3><ul id="goodList" class="plain"></ul></div>
+        <div class="card verdict verdict-mid"><h3>⚠️ A vigilar</h3><ul id="midList" class="plain"></ul></div>
+        <div class="card verdict verdict-bad"><h3>❌ Sienta mal</h3><ul id="badList" class="plain"></ul></div>
+      </div>
+      <div class="card danger-zone">
+        <h3>Zona de datos</h3>
+        <div class="row">
+          <button id="exportBtn" class="btn small">⬇ Exportar datos (JSON)</button>
+          <button id="wipeBtn" class="btn small danger">🗑 Borrar todo lo local</button>
         </div>
       </div>
+    </section>
 
-      <div class="providers-grid" id="providersGrid"></div>
-
+    <!-- ============ AJUSTES ============ -->
+    <section id="tab-ajustes" class="panel" role="tabpanel">
+      <h2>Ajustes · Claves BYOK</h2>
+      <p class="hint">Tus claves se guardan <strong>solo en el localStorage de este navegador</strong>.
+        Nunca se commitean ni salen a ningún servidor propio (no hay backend).
+        Prioridad automática: <strong>Claude &gt; Hermes &gt; Groq &gt; Cursor</strong>.</p>
       <div class="card">
-        <h3>❓ Preguntas frecuentes</h3>
-        <details open>
-          <summary>¿Dónde consigo cada clave?</summary>
-          <p>Cada tarjeta tiene el botón <strong>“Conseguir key ↗”</strong> que te lleva a la consola oficial del proveedor. En general: crea una cuenta → sección <em>API keys</em> → <em>Create key</em> → cópiala y pégala aquí.</p>
-        </details>
-        <details>
-          <summary>¿Es seguro guardarlas en el navegador?</summary>
-          <p>Para uso personal está bien. Las claves quedan en <code>localStorage</code> de tu dispositivo y solo se usan para llamar directamente a la API del proveedor. No las compartas ni las subas a Git. Para compartir el proyecto, usa el fichero <code>.env</code> (ya ignorado por Git) junto al proxy <code>server.js</code>.</p>
-        </details>
-        <details>
-          <summary>¿Por qué falla “Probar conexión”?</summary>
-          <p>Lo más común: clave mal copiada (espacios de más), sin saldo/límites en el proveedor, o bloqueo CORS del navegador. Si el navegador bloquea la llamada directa, arranca el proxy con <code>npm install && npm start</code> y vuelve a probar.</p>
-        </details>
+        <div id="providerStatus"></div>
+        <label class="field"><span>Anthropic Claude <small>visión + chat · se usa primero</small></span>
+          <input type="password" id="key-claude" placeholder="sk-ant-…" autocomplete="off" /></label>
+        <label class="field"><span>Hermes <small>pendiente de implementar</small></span>
+          <input type="password" id="key-hermes" placeholder="(próximamente)" autocomplete="off" /></label>
+        <label class="field"><span>Groq <small>pendiente de implementar</small></span>
+          <input type="password" id="key-groq" placeholder="(próximamente)" autocomplete="off" /></label>
+        <label class="field"><span>Cursor <small>pendiente de implementar</small></span>
+          <input type="password" id="key-cursor" placeholder="(próximamente)" autocomplete="off" /></label>
+        <label class="field"><span>Modelo Claude</span>
+          <input type="text" id="claudeModel" autocomplete="off" /></label>
+        <div class="row">
+          <button id="saveKeysBtn" class="btn primary">Guardar claves</button>
+          <button id="testIaBtn" class="btn">Probar conexión</button>
+        </div>
+        <p id="providerMsg" class="hint" aria-live="polite"></p>
+      </div>
+      <div class="card">
+        <h3>Cómo funciona</h3>
+        <ol class="how">
+          <li>Registras qué comes (foto y/o texto) y cómo te sienta.</li>
+          <li>La IA (o el análisis local) sugiere ingredientes a vigilar.</li>
+          <li>La app te pregunta <em>“¿cómo te sientes?”</em> en las ventanas típicas de cada ingrediente.</li>
+          <li>El resumen correlaciona ingredientes con malestar y sugiere descartes (“prueba a no comer X”).</li>
+        </ol>
       </div>
     </section>
   </main>
 
-  <footer>
-    Hecho con 💚 para la comunidad de intolerancias alimentarias · Tus claves nunca salen de tu navegador salvo hacia la API oficial del proveedor.
+  <!-- Modal check-in -->
+  <dialog id="checkinModal" class="modal" aria-labelledby="checkinTitle" closedby="any">
+    <header class="modal-head">
+      <h3 id="checkinTitle">¿Cómo te sientes?</h3>
+      <p id="checkinCtx" class="hint"></p>
+    </header>
+    <div class="modal-body">
+      <div class="field">
+        <span id="checkinFeelingLabel">Nivel actual</span>
+        <div class="feeling-row" id="checkinFeeling" role="group" aria-labelledby="checkinFeelingLabel">
+          <button type="button" data-v="1" title="Fatal" aria-pressed="false">😖<em>1</em></button>
+          <button type="button" data-v="2" title="Mal" aria-pressed="false">🙁<em>2</em></button>
+          <button type="button" data-v="3" class="sel" title="Normal" aria-pressed="true">😐<em>3</em></button>
+          <button type="button" data-v="4" title="Bien" aria-pressed="false">🙂<em>4</em></button>
+          <button type="button" data-v="5" title="Genial" aria-pressed="false">😄<em>5</em></button>
+        </div>
+      </div>
+      <div class="field"><span>Síntomas <small>(toca para marcar)</small></span>
+        <div id="symptomChips" class="chips"></div>
+      </div>
+      <label class="field"><span>Nota <small>(opcional)</small></span>
+        <input type="text" id="checkinNote" placeholder="Algo más que notes…" /></label>
+    </div>
+    <footer class="modal-foot row">
+      <button id="checkinSave" class="btn primary">Guardar check-in</button>
+      <button id="checkinSnooze" class="btn ghost">Posponer 30 min</button>
+      <button id="checkinClose" class="btn ghost">Cerrar</button>
+    </footer>
+  </dialog>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <footer class="app-footer">
+    <p>Intolerancias · MVP 100% frontend — tus datos no salen de este navegador ·
+      <a href="docs/verificacion.md">verificación manual</a></p>
   </footer>
 
-  <!-- ══════════ MODAL AÑADIR / EDITAR ══════════ -->
-  <div class="modal-backdrop" id="modalBackdrop" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <div class="modal-head">
-        <div class="modal-provider" id="modalProviderIcon">⚡</div>
-        <div>
-          <h3 id="modalTitle">Añadir API key</h3>
-          <p id="modalSubtitle"></p>
-        </div>
-        <button class="icon-btn" id="modalClose" title="Cerrar">✕</button>
-      </div>
-
-      <label class="field">
-        <span>API key</span>
-        <div class="key-input-wrap">
-          <input id="modalKeyInput" type="password" placeholder="Pega aquí tu clave…" autocomplete="off" spellcheck="false" />
-          <button class="icon-btn" id="modalToggleVisible" title="Mostrar / ocultar">👁️</button>
-        </div>
-        <small class="field-hint" id="modalHint"></small>
-      </label>
-
-      <div class="modal-help">
-        <a id="modalHelpLink" href="#" target="_blank" rel="noopener">🔗 Conseguir key ↗</a>
-        <span id="modalValidation" class="validation"></span>
-      </div>
-
-      <div class="modal-actions">
-        <button class="btn ghost" id="modalCancel">Cancelar</button>
-        <button class="btn danger-ghost" id="modalDelete" hidden>Borrar</button>
-        <button class="btn primary" id="modalSave">💾 Guardar clave</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="toast-stack" id="toastStack"></div>
-
-  <script src="app.js" type="module"></script>
+  <script src="js/data.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/providers.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
