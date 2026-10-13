@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Intolerancias — diario personal de comidas y bienestar. 100% local, sin cuentas." />
+  <title>Intolerancias · Diario de comidas y bienestar</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-emoji" aria-hidden="true">🌿</span>
+      <div>
+        <h1>Intolerancias</h1>
+        <p class="tagline">Qué como → cómo me sienta</p>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Secciones">
+      <button class="tab active" data-tab="registrar" role="tab" aria-selected="true">＋ Registrar</button>
+      <button class="tab" data-tab="timeline" role="tab" aria-selected="false">🕘 Timeline <span class="badge hidden" id="pendingBadge"></span></button>
+      <button class="tab" data-tab="resumen" role="tab" aria-selected="false">📊 Resumen</button>
+      <button class="tab" data-tab="ajustes" role="tab" aria-selected="false">⚙️ Ajustes</button>
+    </nav>
+  </header>
+
+  <div class="disclaimer" role="note">
+    ⚠️ <strong>App orientativa, no médica.</strong> Las ventanas de aparición por ingrediente son
+    orientativas y no diagnostican nada. Ante síntomas persistentes, pide una
+    <strong>prueba médica real</strong> (p. ej. test de intolerancias con un profesional sanitario).
+  </div>
+
+  <main>
+    <!-- ============ REGISTRAR ============ -->
+    <section id="tab-registrar" class="panel active" role="tabpanel">
+      <h2>¿Qué has comido?</h2>
+
+      <div class="card">
+        <label class="field">
+          <span>Descripción <small>(ej. "pizza con queso y cerveza")</small></span>
+          <textarea id="mealDesc" rows="3" placeholder="Describe lo que comiste o bebiste…"></textarea>
+        </label>
+
+        <label class="field">
+          <span>Foto <small>(opcional, se comprime y guarda solo en tu navegador)</small></span>
+          <input type="file" id="mealPhoto" accept="image/*" />
+        </label>
+        <div id="photoPreviewWrap" class="hidden">
+          <img id="photoPreview" alt="Vista previa de la comida" />
+          <button type="button" id="photoClear" class="btn ghost small">Quitar foto</button>
+        </div>
+
+        <div class="field">
+          <span>¿Cómo te sienta <em>ahora mismo</em>?</span>
+          <div class="feeling-row" id="mealFeeling" role="radiogroup" aria-label="Nivel inicial">
+            <button type="button" data-v="1" title="Fatal">😖<em>1</em></button>
+            <button type="button" data-v="2" title="Mal">🙁<em>2</em></button>
+            <button type="button" data-v="3" class="sel" title="Normal">😐<em>3</em></button>
+            <button type="button" data-v="4" title="Bien">🙂<em>4</em></button>
+            <button type="button" data-v="5" title="Genial">😄<em>5</em></button>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="saveMealBtn" class="btn primary">Guardar comida</button>
+          <button id="analyzeBtn" class="btn">🤖 Analizar con IA</button>
+        </div>
+        <p class="hint">“Analizar con IA” usa tu clave (BYOK) para detectar posibles ingredientes.
+          Sin clave funciona el análisis local por palabras clave. Nunca sale nada de tu navegador
+          salvo la llamada directa al proveedor de IA que elijas.</p>
+        <div id="analysisResult" class="analysis hidden"></div>
+      </div>
+
+      <div class="card">
+        <h3>⏰ Próximos check-ins <small>“¿cómo te sientes?”</small></h3>
+        <p class="hint">Al guardar una comida se programan avisos en las ventanas típicas de aparición
+          de cada ingrediente sospechoso (solo orientativo).</p>
+        <ul id="upcomingList" class="checkin-list"></ul>
+        <div class="row">
+          <button id="enableNotifBtn" class="btn small">🔔 Activar notificaciones</button>
+          <button id="quickCheckinBtn" class="btn small ghost">Registrar cómo estoy ahora</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TIMELINE ============ -->
+    <section id="tab-timeline" class="panel" role="tabpanel">
+      <h2>Timeline comida → síntomas</h2>
+      <div id="timeline" class="timeline"></div>
+    </section>
+
+    <!-- ============ RESUMEN ============ -->
+    <section id="tab-resumen" class="panel" role="tabpanel">
+      <h2>Resumen: qué te sienta bien / mal</h2>
+      <p class="hint">Correlación simple y local: agrupa tus check-ins por ingrediente sospechoso.
+        Orientativo, no diagnóstico.</p>
+      <div id="suggestions" class="suggestions"></div>
+      <div class="cols">
+        <div class="card"><h3>✅ Sienta bien</h3><ul id="goodList" class="plain"></ul></div>
+        <div class="card"><h3>⚠️ A vigilar</h3><ul id="midList" class="plain"></ul></div>
+        <div class="card"><h3>❌ Sienta mal</h3><ul id="badList" class="plain"></ul></div>
+      </div>
+      <div class="card danger-zone">
+        <h3>Zona de datos</h3>
+        <div class="row">
+          <button id="exportBtn" class="btn small">⬇ Exportar datos (JSON)</button>
+          <button id="wipeBtn" class="btn small danger">🗑 Borrar todo lo local</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ AJUSTES ============ -->
+    <section id="tab-ajustes" class="panel" role="tabpanel">
+      <h2>Ajustes · Claves BYOK</h2>
+      <p class="hint">Tus claves se guardan <strong>solo en el localStorage de este navegador</strong>.
+        Nunca se commitean ni salen a ningún servidor propio (no hay backend).
+        Prioridad automática: <strong>Claude &gt; Hermes &gt; Groq &gt; Cursor</strong>.</p>
+      <div class="card">
+        <div id="providerStatus"></div>
+        <label class="field"><span>Anthropic Claude <small>visión + chat · se usa primero</small></span>
+          <input type="password" id="key-claude" placeholder="sk-ant-…" autocomplete="off" /></label>
+        <label class="field"><span>Hermes <small>pendiente de implementar</small></span>
+          <input type="password" id="key-hermes" placeholder="(próximamente)" autocomplete="off" /></label>
+        <label class="field"><span>Groq <small>pendiente de implementar</small></span>
+          <input type="password" id="key-groq" placeholder="(próximamente)" autocomplete="off" /></label>
+        <label class="field"><span>Cursor <small>pendiente de implementar</small></span>
+          <input type="password" id="key-cursor" placeholder="(próximamente)" autocomplete="off" /></label>
+        <label class="field"><span>Modelo Claude</span>
+          <input type="text" id="claudeModel" autocomplete="off" /></label>
+        <div class="row">
+          <button id="saveKeysBtn" class="btn primary">Guardar claves</button>
+          <button id="testIaBtn" class="btn">Probar conexión</button>
+        </div>
+        <p id="providerMsg" class="hint"></p>
+      </div>
+      <div class="card">
+        <h3>Cómo funciona</h3>
+        <ol class="how">
+          <li>Registras qué comes (foto y/o texto) y cómo te sienta.</li>
+          <li>La IA (o el análisis local) sugiere ingredientes a vigilar.</li>
+          <li>La app te pregunta <em>“¿cómo te sientes?”</em> en las ventanas típicas de cada ingrediente.</li>
+          <li>El resumen correlaciona ingredientes con malestar y sugiere descartes (“prueba a no comer X”).</li>
+        </ol>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal check-in -->
+  <div id="checkinModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="checkinTitle">
+    <div class="modal-card">
+      <h3 id="checkinTitle">¿Cómo te sientes?</h3>
+      <p id="checkinCtx" class="hint"></p>
+      <div class="feeling-row" id="checkinFeeling" role="radiogroup" aria-label="Nivel actual">
+        <button type="button" data-v="1">😖<em>1</em></button>
+        <button type="button" data-v="2">🙁<em>2</em></button>
+        <button type="button" data-v="3" class="sel">😐<em>3</em></button>
+        <button type="button" data-v="4">🙂<em>4</em></button>
+        <button type="button" data-v="5">😄<em>5</em></button>
+      </div>
+      <div class="field"><span>Síntomas <small>(toca para marcar)</small></span>
+        <div id="symptomChips" class="chips"></div>
+      </div>
+      <label class="field"><span>Nota <small>(opcional)</small></span>
+        <input type="text" id="checkinNote" placeholder="Algo más que notes…" /></label>
+      <div class="row">
+        <button id="checkinSave" class="btn primary">Guardar check-in</button>
+        <button id="checkinSnooze" class="btn ghost">Posponer 30 min</button>
+        <button id="checkinClose" class="btn ghost">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <footer>
+    <p>Intolerancias · MVP 100% frontend — tus datos no salen de este navegador ·
+      <a href="docs/verificacion.md">verificación manual</a></p>
+  </footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/providers.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
