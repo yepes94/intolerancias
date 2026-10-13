@@ -8,8 +8,7 @@
  *   - feelings(meals, entries): registros { mealId, doneAt, feeling, symptoms } para
  *     Resumen y Dieta (mismo formato que usaban los check-ins).
  *   - mergeLegacy(entries, checkins): check-ins respondidos → entradas «históricas».
- *   - reminderState(...): si toca el recordatorio de las 21:00.
- * Orientativo, no médico. */
+ *   - reminderState(...): si toca el recordatorio de las 21:00. */
 (function () {
   "use strict";
 
@@ -44,7 +43,7 @@
   // Señales de alarma: se avisa de buscar atención médica (no se diagnostica).
   const RED_FLAGS = /sangre|sangrado|no puedo respirar|dificultad (para|al) respirar|me ahogo|ahogo|garganta (cerrada|hinchada)|(labios|lengua|cara|garganta) hinchad|hinchazon de (labios|lengua|cara|garganta)|desmay|perdi el conocimiento|fiebre alta|dolor (muy )?(fuerte|intenso|insoportable)/;
 
-  // Síntoma → componentes que suelen asociarse (orientativo, para el análisis local).
+  // Síntoma → componentes que suelen asociarse (heurística del análisis local).
   const SYMPTOM_HINTS = {
     "hinchazón": ["lactosa", "fructosa", "gluten", "soja"],
     "gases": ["lactosa", "fructosa", "gluten", "soja"],

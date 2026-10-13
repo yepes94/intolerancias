@@ -85,11 +85,12 @@ const ck = (mealId, feeling, symptoms, extra) => ({ id: "c" + t++, mealId, doneA
     Diet.shoppingList({ meals: [{ items: ["100 g de arroz", "1 taza de arroz"] }] })[0].qty.join(" + ") === "100 g + 1 taza",
     "lista de la compra: agrupa por ingrediente y suma cantidades", JSON.stringify(shop));
   const txt = Diet.planText(plan);
-  ok(/DESAYUNO · 08:00/.test(txt) && /Qué observar:/.test(txt) && /1\. /.test(txt) && txt.endsWith(Diet.DISCLAIMER), "texto para compartir: horas, pasos, qué observar y aviso al final");
+  ok(/DESAYUNO · 08:00/.test(txt) && /Qué observar:/.test(txt) && /1\. /.test(txt) &&
+    !/m[ée]dico|nutricionista|pruebas de intolerancia|orientativ/i.test(txt),
+    "texto para compartir: horas, pasos, qué observar, sin aviso médico");
   const old = Diet.planText({ meals: [{ slot: "cena", name: "Pavo", items: ["pavo"], why: "ligero" }] });
   ok(/CENA — Pavo/.test(old), "planes antiguos sin campos nuevos siguen funcionando");
 }
-ok(/m[ée]dico/.test(Diet.DISCLAIMER) && /nutricionista/.test(Diet.DISCLAIMER) && /pruebas de intolerancia/.test(Diet.DISCLAIMER), "disclaimer: médico + nutricionista + pruebas de intolerancia");
 
 // ---------- 2. Function /api/diet con upstream simulado ----------
 console.log("2. functions/api/diet.js (validación, taxonomía, JSON conciso, privacidad)");

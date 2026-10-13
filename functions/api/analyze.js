@@ -53,10 +53,10 @@ const FALLBACK_INGREDIENTS = [
 function foodPrompt(description, hasImage, validKeys) {
   const keys = (validKeys && validKeys.length ? validKeys : FALLBACK_INGREDIENTS).join(", ");
   return (
-    "Eres un asistente de diario alimentario personal. NO eres medico y NO diagnosticas. " +
+    "Eres un asistente de diario alimentario personal. " +
     "Analiza esta comida y responde UNICAMENTE con un objeto JSON, sin nada mas: " +
     "ni saludos, ni explicaciones antes o despues, ni bloques markdown (nada de ```), solo el objeto. " +
-    "Se conciso: la respuesta completa debe ser corta (menos de ~250 palabras en total). " +
+    "Se conciso y directo: la respuesta completa debe ser corta (menos de ~250 palabras en total). " +
     'Forma exacta: {"food": "<alimento detectado en 2-5 palabras, ej. pan blanco de molde>", ' +
     '"components": ["<solo los componentes relevantes que causan intolerancia/alergia, " + ' +
     'máx. 6, ej. gluten, trigo, fructanos, soja, posible lactosa>"], ' +
@@ -67,8 +67,7 @@ function foodPrompt(description, hasImage, validKeys) {
     "(ej. pan blanco de molde → gluten, trigo, fructanos, soja, posible lactosa) " +
     "y quédate solo con los relevantes para esta comida. " +
     "Usa comillas dobles y sin comas finales, para que sea JSON.parse valido. " +
-    "Comida: " + (description || "(solo foto)") + (hasImage ? " [incluye foto]" : "") +
-    "\nRecuerda: anade que es orientativo y no sustituye una prueba medica real."
+    "Comida: " + (description || "(solo foto)") + (hasImage ? " [incluye foto]" : "")
   );
 }
 

@@ -398,22 +398,6 @@ main { padding-block-end: var(--space-l); }
   .tab:not([aria-current="page"]):hover .tab-icon { filter: none; opacity: 1; }
 }
 
-/* ---------- disclaimer ---------- */
-.disclaimer {
-  display: flex;
-  gap: var(--space-xs);
-  align-items: start;
-  margin-block-start: var(--space-m);
-  padding: var(--space-s) var(--space-m);
-  border: 1px solid color-mix(in oklch, var(--accent) 45%, transparent);
-  border-radius: var(--radius);
-  background: var(--accent-subtle);
-  font-size: var(--step--1);
-}
-
-.disclaimer p { margin: 0; }
-.disclaimer-icon { flex: none; line-height: 1.5; }
-
 /* ---------- panels + cards ---------- */
 .panel { display: none; }
 .panel.active {
@@ -901,15 +885,6 @@ main { padding-block-end: calc(var(--space-l) + 4rem + var(--fab-offset, 0px)); 
 .meal .row { margin-block-start: var(--space-2xs); }
 
 /* ---------- dieta de prueba ---------- */
-.diet-disclaimer {
-  margin: 0;
-  padding: var(--space-xs) var(--space-s);
-  border: 1px solid color-mix(in oklch, var(--accent) 45%, transparent);
-  border-radius: var(--radius-s);
-  background: var(--accent-subtle);
-  font-size: var(--step--1);
-}
-
 .diet-scope {
   margin: 0;
   padding: 0;

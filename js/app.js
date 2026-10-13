@@ -509,7 +509,7 @@
       (causes ? "<ol class='diary-causes'>" + causes + "</ol>" : "") +
       (a.advice ? "<p>💡 " + esc(a.advice) + "</p>" : "") +
       (a.error ? "<p class='hint'>⚠️ La IA no respondió: " + esc(a.error) + " Se muestra el análisis local.</p>" : "") +
-      "<p class='hint'>" + esc(D.DISCLAIMER) + "</p></div>";
+      "</div>";
   }
 
   function diaryCard(e) {
@@ -708,7 +708,7 @@
       div.className = "suggestion";
       div.innerHTML = "🧪 <strong>Prueba a no comer " + esc(w ? w.label.toLowerCase() : r.id) + "</strong> " +
         "durante unos días y observa (" + r.bad + "/" + r.n + " veces con malestar).<br>" +
-        "<span class='hint'>Ejemplos: " + esc(w ? w.hint : "") + ". " + esc(D.DISCLAIMER) + "</span>";
+        "<span class='hint'>Ejemplos: " + esc(w ? w.hint : "") + ".</span>";
       sug.appendChild(div);
     }
   }
@@ -938,7 +938,6 @@
       (d.mode === "exclusion" ? "Sin " + esc(d.avoid.map(ingLabel).join(", ").toLowerCase()) : "Equilibrada y ligera") + "</span>" +
       "<span class='hint'>" + esc(d.label) + (done ? " · " + done + "/" + d.meals.length + " hechas" : "") + "</span></summary>" +
       "<div class='diet-plan-body'>" +
-      "<p class='diet-disclaimer'>" + esc(Diet.DISCLAIMER) + "</p>" +
       (d.rationale ? "<p class='diet-rationale'>" + esc(d.rationale) + "</p>" : "") +
       (d.meals.length > 1 ? "<div class='diet-glance'><p class='diet-slot'>Tu día de un vistazo</p><ol>" + d.meals.map((pm) =>
         "<li><button type='button' class='diet-glance-item' data-goto='" + esc(pm.slot) + "'>" +

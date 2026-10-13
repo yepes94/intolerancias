@@ -8,10 +8,6 @@ Registras qué comes (foto y/o texto) y, cuando te sientes mal, lo cuentas con t
 que comiste en las 24 h anteriores, te dice qué puede estar detrás y te sugiere descartes
 (*“prueba a no comer X”*). Si un día registras comidas y no escribes nada, te lo recuerda a las 21:00.
 
-> ⚠️ **App orientativa, no médica.** Las ventanas por ingrediente (gluten, lactosa, etc.)
-> son orientativas y no diagnostican nada. Ante síntomas persistentes, pide una
-> **prueba médica real** con un profesional sanitario.
-
 ## Probar en local
 
 ```bash
@@ -73,14 +69,13 @@ alternativa y qué observar después; el plan incluye lista de la compra y se pu
 compartir o copiar. La respuesta de la IA no tiene tope propio de tokens. Los planes se
 guardan en `localStorage` (`intol.diets.v1`); «Comí esto» y «Registrar cómo me siento»
 los enlazan con el diario para comparar con/sin plan. Sin clave hay plan local de ejemplo.
-Orientativo: no sustituye a un médico ni a un nutricionista; hazte pruebas de intolerancia.
 
 ## Estructura
 
 ```text
 index.html          UI + pestañas (Registrar · Timeline · Dieta · Resumen · Ajustes)
 styles.css          estilos mobile-first, tema claro/oscuro automático, sin dependencias
-js/data.js          ventanas de onset, síntomas, keywords, disclaimer
+js/data.js          ventanas de onset, síntomas, keywords
 js/store.js         localStorage + IndexedDB + compresión de fotos
 js/providers.js     abstracción BYOK vía proxy /api/analyze (Claude y Groq reales, resto stubs)
 js/diet.js          dieta de prueba: señales, plan local, conflictos, comparación, lista de la compra (sin DOM)
