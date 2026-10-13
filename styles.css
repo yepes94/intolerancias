@@ -848,12 +848,102 @@ input[type="file"]::file-selector-button {
   font-size: var(--step--1);
 }
 
-.diet-tips {
+.diet-tips { font-size: var(--step--1); }
+.diet-tips ul { margin: 0; padding-inline-start: 1.1rem; color: var(--muted); }
+
+.diet-label {
   margin: 0;
-  padding-inline-start: 1.1rem;
   color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.diet-time {
+  display: inline-block;
+  padding: 0 0.4em;
+  border-radius: 999px;
+  background: var(--brand-subtle);
+  color: var(--brand);
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  vertical-align: 0.05em;
+}
+
+.diet-glance {
+  padding: var(--space-xs) var(--space-s);
+  border: 1px solid color-mix(in oklch, var(--brand) 35%, var(--line));
+  border-radius: var(--radius-s);
+  background: var(--brand-subtle);
+}
+
+.diet-glance > p { margin: 0 0 var(--space-2xs); }
+.diet-glance ol { margin: 0; padding: 0; list-style: none; }
+
+.diet-glance-item {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr) auto;
+  gap: var(--space-xs);
+  align-items: baseline;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.35rem 0;
+  border: 0;
+  border-block-start: 1px solid color-mix(in oklch, var(--brand) 18%, transparent);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--step--1);
+  text-align: start;
+  cursor: pointer;
+}
+
+.diet-glance li:first-child .diet-glance-item { border-block-start: 0; }
+.diet-glance-item .diet-time { justify-self: start; }
+.diet-glance-slot { display: block; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.diet-glance-done { color: var(--brand); font-weight: 700; }
+
+.diet-meals > li { scroll-margin-block-start: 5rem; }
+
+.diet-steps, .diet-shop {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
   font-size: var(--step--1);
 }
+
+.diet-steps > summary, .diet-shop > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.diet-steps ol { margin: 0; padding: 0 var(--space-xs) var(--space-xs) 1.9rem; }
+.diet-steps li + li { margin-block-start: 0.25rem; }
+
+.diet-shop ul { margin: 0; padding: 0 var(--space-xs) var(--space-xs); list-style: none; }
+.diet-shop li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: 0.3rem 0;
+  border-block-start: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.diet-shop li .hint { text-align: end; white-space: nowrap; }
+
+.diet-notes { display: flex; flex-direction: column; gap: 0.3rem; margin: 0; font-size: var(--step--1); }
+.diet-notes dt { font-weight: 600; }
+.diet-notes dd { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
+.diet-notes .is-watch {
+  padding: var(--space-2xs) var(--space-xs);
+  border-inline-start: 3px solid var(--brand);
+  background: var(--brand-subtle);
+}
+.diet-notes .is-watch dd { color: inherit; }
 
 .diet-compare {
   display: flex;

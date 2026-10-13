@@ -93,7 +93,7 @@
     getDiets() { return load(LS_DIETS, []); },
     saveDiets(d) { save(LS_DIETS, d); },
     getSettings() {
-      return Object.assign(
+      const s = Object.assign(
         {
           keys: {},
           preferred: "auto",
@@ -102,6 +102,9 @@
         },
         load(LS_SETTINGS, {})
       );
+      // Antiguo modelo por defecto, retirado por Anthropic el 15-jun-2026.
+      if (s.model === "claude-sonnet-4-20250514") s.model = window.IntolData.DEFAULT_MODEL;
+      return s;
     },
     saveSettings(s) { save(LS_SETTINGS, s); },
     uid, photoPut, photoGet, photoDel, compressImage,

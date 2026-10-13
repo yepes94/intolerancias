@@ -143,6 +143,13 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 - [ ] **Pedir dieta** sin clave → plan local que respeta la exclusión; con clave → plan IA.
       Elige *Día completo* (4 franjas) o *Una comida* (la elegida). Si un plato menciona
       un componente excluido aparece “⚠️ Revisa: puede contener …”.
+- [ ] **Plan explicado**: en un día completo aparece «Tu día de un vistazo» (hora, franja,
+      plato; pulsar una fila lleva a esa comida). Cada comida muestra hora, ingredientes con
+      cantidades, «Cómo prepararlo» (desplegable con pasos), 💡 Por qué, 🔁 Alternativa y
+      👀 Qué observar después. Debajo: Consejos, 🛒 Lista de la compra (ingredientes
+      agrupados y cantidades sumadas) y «Compartir plan» (hoja de compartir del móvil o
+      copia al portapapeles, con el aviso al final). Un plan guardado antes de este cambio
+      se sigue viendo, sin los bloques que no tiene.
 - [ ] **Seguir y comparar**: «Comí esto» crea la comida (🥗 en el timeline) con sus
       check-ins; «Registrar cómo me siento» abre el check-in “Siguiendo: …”. El plan
       muestra *Con el plan* vs *Sin plan* (nivel medio, % con pesadez/hinchazón/cansancio, síntomas).
@@ -150,6 +157,18 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       entran en *Exportar datos* y *Borrar todo* los elimina.
 - [ ] **Disclaimer** visible en la pestaña y en cada plan (médico, nutricionista, pruebas de intolerancia).
 - [ ] **Móvil 375px**: sin scroll horizontal en la pestaña Dieta ni en las tarjetas del plan.
+- [ ] **Thinking de Claude (familia 5)**: `node tests/claude-thinking.test.mjs` → todo OK
+      (respuesta `thinking`+`text` → solo se lee `text`; Sonnet 5.5 → `between_tools`,
+      Sonnet 5/Haiku 5.5/Opus 5 → `disabled`, Opus 5.5/Fable → solo `effort: "low"`,
+      4.x sin tocar). La dieta no tiene tope propio de tokens: Claude recibe el máximo
+      de salida del modelo (128000 en la familia 5 y Opus 4.6+, 64000 en el resto) y, si lo
+      rechaza, se reintenta con el máximo que indique el error; si da 429 por tokens de
+      salida por minuto (cuentas de tier bajo), un reintento con 16000; Groq va sin `max_tokens`
+      y solo si responde 413/429 por cuota TPM se reintenta con 8192. El análisis sigue
+      en 2500. Con BYOK real en la
+      preview: Ajustes → modelo `claude-sonnet-5-5` (u Opus 5.5) → **Pedir dieta** *Día completo*
+      → 4 comidas, sin «Se cortó por límite». Si aun así se corta, el error dice
+      «el razonamiento interno del modelo agotó el límite».
 
 ## Criterio de aceptación
 
