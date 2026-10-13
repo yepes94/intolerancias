@@ -109,8 +109,9 @@ const ctx = { avoid: ["gluten"], suspects: [{ id: "gluten", n: 3, bad: 3, sympto
   const plan = {
     mode: "exclusion", avoid: [], rationale: "Sin gluten por tus molestias.",
     meals: [
-      { slot: "desayuno", name: "Copos de arroz con plátano", items: ["copos de arroz", "plátano", "bebida de arroz", "canela", "miel", "extra1", "extra2"], why: "Ligero" },
-      { slot: "Almuerzo", name: "Merluza con patata", items: ["merluza", "patata"], why: "x".repeat(400) },
+      { slot: "desayuno", time: "8:00", name: "Copos de arroz con plátano", items: ["40 g de copos de arroz", "1 plátano", "200 ml de bebida de arroz", "canela", "miel", "extra1", "extra2"], why: "Ligero",
+        steps: ["Calienta la bebida.", "Añade los copos y el plátano."], swap: "Copos de mijo", watch: "Si notas hinchazón a media mañana." },
+      { slot: "Almuerzo", time: "25:99", name: "Merluza con patata", items: ["merluza", "patata"], why: "x".repeat(400) },
       { slot: "merienda", name: "Tortitas de arroz", items: ["tortitas"], why: "" },
       { slot: "cena", name: "Pavo con verduras", items: ["pavo"], why: "" }
     ],
@@ -121,8 +122,11 @@ const ctx = { avoid: ["gluten"], suspects: [{ id: "gluten", n: 3, bad: 3, sympto
   ok(r.status === 200 && r.json.ok && r.json.result.meals.length === 4, "Claude día completo con fences → 200 con 4 comidas", r.text.slice(0, 200));
   ok(r.json.result.meals[1].slot === "comida", "«Almuerzo» se normaliza a comida");
   ok(r.json.result.avoid.includes("gluten"), "la IA no puede quitar exclusiones del cliente (gluten se mantiene)");
-  ok(r.json.result.meals[0].items.length === 5 && r.json.result.meals[1].why.length <= 140 && r.json.result.tips.length === 3, "topes: 5 items, why ≤140, 3 tips");
-  ok(lastUpstream.body.max_tokens === 4000 && lastUpstream.init.headers["x-api-key"] === KEY, "upstream Claude: max_tokens 4000 (thinking + texto) y key solo en cabecera");
+  ok(r.json.result.meals[0].items.length === 7 && r.json.result.meals[1].why.length === 400 && r.json.result.tips.length === 5, "sin recortes de contenido razonable: 7 items, why de 400, 5 tips");
+  const d0 = r.json.result.meals[0];
+  ok(d0.time === "08:00" && d0.steps.length === 2 && /mijo/.test(d0.swap) && /hinchazón/.test(d0.watch), "se conservan hora, pasos, alternativa y qué observar", JSON.stringify(d0));
+  ok(!("time" in r.json.result.meals[1]) && r.json.result.meals[1].steps.length === 0, "hora inválida se descarta; sin pasos → lista vacía");
+  ok(lastUpstream.body.max_tokens === 128000 && lastUpstream.init.headers["x-api-key"] === KEY, "upstream Claude: max_tokens = máximo del modelo (128000), key solo en cabecera");
   const prompt = lastUpstream.body.messages[0].content;
   ok(/EXCLUYE.*gluten/.test(prompt) && /energia y poca pesadez/.test(prompt) && /pasta/.test(prompt), "prompt: excluye gluten, prioriza energía/poca pesadez, usa comidas registradas");
   ok(!r.text.includes(KEY), "respuesta sin eco de la key");
@@ -132,7 +136,15 @@ const ctx = { avoid: ["gluten"], suspects: [{ id: "gluten", n: 3, bad: 3, sympto
   upstream = claudeText(JSON.stringify({ meals: [{ slot: "cena", name: "Pavo", items: ["pavo"] }] }));
   const r = await call("POST", { provider: "claude", key: KEY, scope: "meal", slot: "cena", context: { avoid: [], suspects: [], recent: [] } });
   ok(r.status === 200 && r.json.result.mode === "equilibrada" && r.json.result.meals.length === 1, "una comida sin señales → equilibrada");
-  ok(lastUpstream.body.max_tokens === 2500 && /equilibrada y ligera/.test(lastUpstream.body.messages[0].content), "una comida: max_tokens 2500 + prompt equilibrada y ligera");
+  ok(lastUpstream.body.max_tokens === 128000 && /equilibrada y ligera/.test(lastUpstream.body.messages[0].content), "una comida: sin tope propio (128000) + prompt equilibrada y ligera");
+  ok(/cantidades/.test(lastUpstream.body.messages[0].content) && /"steps"/.test(lastUpstream.body.messages[0].content) && /"watch"/.test(lastUpstream.body.messages[0].content), "prompt pide cantidades, pasos y qué observar");
+}
+{
+  const huge = { meals: [{ slot: "cena", name: "Pavo", items: Array.from({ length: 30 }, (_, i) => "item " + i), steps: Array.from({ length: 20 }, () => "y".repeat(900)) }], tips: Array.from({ length: 20 }, () => "t") };
+  upstream = claudeText(JSON.stringify(huge));
+  const r = await call("POST", { provider: "claude", key: KEY, scope: "meal", slot: "cena", context: ctx });
+  const m = r.json.result.meals[0];
+  ok(m.items.length === 12 && m.steps.length === 8 && m.steps[0].length <= 300 && r.json.result.tips.length === 6, "saneado anti-desbordes: 12 items, 8 pasos ≤300, 6 tips");
 }
 {
   upstream = claudeText("", "max_tokens");

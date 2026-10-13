@@ -77,9 +77,18 @@ for (const [model, want] of cases) {
   upstream = okPlan;
   await call(diet, { provider: "claude", key: KEY, scope: "day", context: ctx });
   ok(sent[0].model === "claude-sonnet-5-5" && sent[0].thinking.type === "between_tools", "sin modelo → claude-sonnet-5-5 (el antiguo por defecto está retirado) sin thinking previo");
-  ok(sent[0].max_tokens === 4000, "día completo: max_tokens 4000 (thinking + texto)");
+  ok(sent[0].max_tokens === 128000, "día completo: sin tope propio, máximo del modelo (128000)");
   await call(diet, { provider: "claude", key: KEY, scope: "meal", slot: "cena", context: ctx });
-  ok(sent[0].max_tokens === 2500, "una comida: max_tokens 2500");
+  ok(sent[0].max_tokens === 128000, "una comida: también el máximo del modelo");
+  await call(diet, { provider: "claude", key: KEY, model: "claude-haiku-4-5-20251001", scope: "day", context: ctx });
+  ok(sent[0].max_tokens === 64000, "modelo 4.x → 64000");
+}
+{
+  upstream = (b, n) => n === 1
+    ? jres({ type: "error", error: { type: "invalid_request_error", message: "max_tokens: 64000 > 32768, which is the maximum allowed number of output tokens for claude-sonnet-4-1" } }, 400)
+    : okPlan();
+  const r = await call(diet, { provider: "claude", key: KEY, model: "claude-sonnet-4-1", scope: "day", context: ctx });
+  ok(r.status === 200 && sent.length === 2 && sent[0].max_tokens === 64000 && sent[1].max_tokens === 32768, "max_tokens por encima del máximo → reintento con el que indica el error");
 }
 {
   upstream = (b, n) => n === 1
@@ -95,7 +104,12 @@ for (const [model, want] of cases) {
 {
   upstream = () => jres({ choices: [{ message: { content: JSON.stringify(dayPlan) }, finish_reason: "stop" }] });
   await call(diet, { provider: "groq", key: "gsk_x", scope: "day", context: ctx });
-  ok(sent[0].max_tokens === 1200 && !sent[0].thinking && !sent[0].output_config, "Groq sin cambios: max_tokens 1200, sin thinking/effort");
+  ok(!("max_tokens" in sent[0]) && !sent[0].thinking && !sent[0].output_config, "Groq: sin max_tokens (máximo del modelo), sin thinking/effort");
+  upstream = (b, n) => n === 1
+    ? jres({ error: { message: "Request too large for model: Limit 6000, Requested 32768. tokens per minute (TPM)" } }, 413)
+    : jres({ choices: [{ message: { content: JSON.stringify(dayPlan) }, finish_reason: "stop" }] });
+  const g = await call(diet, { provider: "groq", key: "gsk_x", scope: "day", context: ctx });
+  ok(g.status === 200 && sent.length === 2 && sent[1].max_tokens === 8192, "Groq 413 por cuota TPM → 1 reintento con max_tokens 8192");
 }
 
 console.log("3. /api/analyze con bloques thinking + text");
