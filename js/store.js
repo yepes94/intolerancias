@@ -7,6 +7,7 @@
   const LS_MEALS = "intol.meals.v1";
   const LS_CHECKINS = "intol.checkins.v1";
   const LS_SETTINGS = "intol.settings.v1";
+  const LS_DIETS = "intol.diets.v1";
 
   const IDB_NAME = "intol-photos";
   const IDB_STORE = "photos";
@@ -89,6 +90,8 @@
     saveMeals(m) { save(LS_MEALS, m); },
     getCheckins() { return load(LS_CHECKINS, []); },
     saveCheckins(c) { save(LS_CHECKINS, c); },
+    getDiets() { return load(LS_DIETS, []); },
+    saveDiets(d) { save(LS_DIETS, d); },
     getSettings() {
       return Object.assign(
         {
@@ -105,6 +108,7 @@
     wipe() {
       localStorage.removeItem(LS_MEALS);
       localStorage.removeItem(LS_CHECKINS);
+      localStorage.removeItem(LS_DIETS);
       try {
         const req = indexedDB.deleteDatabase(IDB_NAME);
         req.onsuccess = req.onerror = () => {};

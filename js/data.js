@@ -21,7 +21,7 @@
   };
 
   const SYMPTOMS = [
-    "hinchazón", "gases", "dolor abdominal", "diarrea", "náusea",
+    "hinchazón", "pesadez", "gases", "dolor abdominal", "diarrea", "náusea",
     "acidez", "cansancio", "dolor de cabeza", "erupción", "estreñimiento", "otro"
   ];
 
@@ -35,7 +35,7 @@
     [/soja|tofu|sushi/, "soja"],
     [/picante|frito|grasa|hamburguesa|kebab|chili/, "picante"],
     [/cerveza|vino|alcohol|copa|birra/, "alcohol"],
-    [/cafe|chocolate|energetica|te\b/, "cafeina"],
+    [/cafe|chocolate|energetica|\bte\b/, "cafeina"],
     [/embutido|chorizo|jamon|queso curado|conserva|atun en lata/, "histamina"]
   ];
 

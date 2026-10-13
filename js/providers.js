@@ -49,6 +49,7 @@
   }
 
   const PROXY_URL = "/api/analyze";
+  const DIET_URL = "/api/diet";
 
   // Todo el tráfico IA sale por el proxy same-origin de Pages Functions:
   // el navegador nunca toca api.anthropic.com/api.groq.com (adiós CORS) y
@@ -93,29 +94,42 @@
   // Unifica ping + analyze de todos los proveedores: el frontend manda
   // { provider, action, key, … } y el proxy reenvía al proveedor con la
   // clave BYOK. La respuesta ya trae la taxonomía (kind) del servidor.
-  async function proxyCall(providerId, providerLabel, action, payload) {
+  async function proxyCall(providerId, providerLabel, action, payload, url) {
     const validIngredients = Object.keys(D().ONSET_WINDOWS);
+    const target = url || PROXY_URL;
+    const reqBody = url === DIET_URL
+      ? {
+        provider: providerId,
+        key: payload.apiKey,
+        model: payload.model || D().DEFAULT_MODEL,
+        groqModel: payload.groqModel || D().GROQ_MODEL,
+        scope: payload.scope,
+        slot: payload.slot || "",
+        context: payload.context || {},
+        validIngredients
+      }
+      : {
+        provider: providerId,
+        action,
+        key: payload.apiKey,
+        model: payload.model || D().DEFAULT_MODEL,
+        groqModel: payload.groqModel || D().GROQ_MODEL,
+        description: payload.description || "",
+        imageDataUrl: payload.imageDataUrl || null,
+        validIngredients
+      };
     let res;
     try {
-      res = await fetch(PROXY_URL, {
+      res = await fetch(target, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          provider: providerId,
-          action,
-          key: payload.apiKey,
-          model: payload.model || D().DEFAULT_MODEL,
-          groqModel: payload.groqModel || D().GROQ_MODEL,
-          description: payload.description || "",
-          imageDataUrl: payload.imageDataUrl || null,
-          validIngredients
-        })
+        body: JSON.stringify(reqBody)
       });
     } catch (err) {
       throw codedError("network",
-        "No se pudo contactar con el proxy /api/analyze (red o la app no está " +
+        "No se pudo contactar con el proxy " + target + " (red o la app no está " +
         "servida desde Pages/wrangler: en file:// o python -m http.server el proxy " +
-        "no existe). El análisis local sigue funcionando.");
+        "no existe). El modo local sigue funcionando.");
     }
     let body = null;
     try { body = await res.json(); } catch { body = null; }
@@ -319,6 +333,15 @@
     };
   }
 
+  function checkPlan(result, label) {
+    if (!result || !Array.isArray(result.meals) || !result.meals.length) {
+      throw codedError("badjson",
+        label + " respondió pero sin un plan reconocible. Pulsa de nuevo «Pedir dieta»; " +
+        "el plan local sigue disponible.");
+    }
+    return result;
+  }
+
   const Providers = {
     order: ["claude", "hermes", "groq", "cursor"],
 
@@ -349,6 +372,12 @@
           }
           result.summary = (result.summary || "") + " " + D().DISCLAIMER;
           return result;
+        },
+
+        async planDiet({ scope, slot, context }, apiKey, model, settings) {
+          return checkPlan(await proxyCall("claude", "Claude", "plan", {
+            apiKey, model, groqModel: settings && settings.groqModel, scope, slot, context
+          }, DIET_URL), "Claude");
         }
       },
 
@@ -356,7 +385,8 @@
       hermes: {
         id: "hermes", label: "Hermes", implemented: false, needsVision: true,
         async ping() { throw codedError("notimpl", "Proveedor Hermes aún no implementado (pendiente, sin refactorizar: implementar ping + analyzeFood aquí)."); },
-        async analyzeFood() { throw codedError("notimpl", "Proveedor Hermes aún no implementado."); }
+        async analyzeFood() { throw codedError("notimpl", "Proveedor Hermes aún no implementado."); },
+        async planDiet() { throw codedError("notimpl", "Proveedor Hermes aún no implementado."); }
       },
       groq: {
         id: "groq",
@@ -386,12 +416,19 @@
           }
           result.summary = (result.summary || "") + " " + D().DISCLAIMER;
           return result;
+        },
+
+        async planDiet({ scope, slot, context }, apiKey, _model, settings) {
+          return checkPlan(await proxyCall("groq", "Groq", "plan", {
+            apiKey, groqModel: settings && settings.groqModel, scope, slot, context
+          }, DIET_URL), "Groq");
         }
       },
       cursor: {
         id: "cursor", label: "Cursor", implemented: false, needsVision: false,
         async ping() { throw codedError("notimpl", "Proveedor Cursor aún no implementado (pendiente, sin refactorizar: implementar ping + analyzeFood aquí)."); },
-        async analyzeFood() { throw codedError("notimpl", "Proveedor Cursor aún no implementado."); }
+        async analyzeFood() { throw codedError("notimpl", "Proveedor Cursor aún no implementado."); },
+        async planDiet() { throw codedError("notimpl", "Proveedor Cursor aún no implementado."); }
       }
     },
 
