@@ -287,6 +287,9 @@ function claudeThinking(model) {
 // reintenta una vez sin esos campos antes de dar el error.
 // Y si rechaza max_tokens por encima de su máximo, se reintenta con el que
 // indique el propio error (o un valor seguro).
+// El límite de tokens de salida por minuto se estima con max_tokens al empezar,
+// así que en cuentas de tier bajo un 429 por ese límite se reintenta una vez con menos.
+const CLAUDE_RATELIMIT_MAX_TOKENS = 16000;
 async function claudeFetch(key, body) {
   const send = (b) => fetch(CLAUDE_URL, {
     method: "POST",
@@ -307,6 +310,10 @@ async function claudeFetch(key, body) {
     } else break;
     current = next;
     res = await send(current);
+  }
+  if (res.status === 429 && current.max_tokens > CLAUDE_RATELIMIT_MAX_TOKENS) {
+    const t = await res.clone().text().catch(() => "");
+    if (/output.?tokens/i.test(t)) res = await send({ ...current, max_tokens: CLAUDE_RATELIMIT_MAX_TOKENS });
   }
   return { res };
 }

@@ -89,6 +89,14 @@ for (const [model, want] of cases) {
     : okPlan();
   const r = await call(diet, { provider: "claude", key: KEY, model: "claude-sonnet-4-1", scope: "day", context: ctx });
   ok(r.status === 200 && sent.length === 2 && sent[0].max_tokens === 64000 && sent[1].max_tokens === 32768, "max_tokens por encima del máximo → reintento con el que indica el error");
+  upstream = (b, n) => n === 1
+    ? jres({ type: "error", error: { type: "rate_limit_error", message: "This request would exceed your organization's rate limit of 8,000 output tokens per minute." } }, 429)
+    : okPlan();
+  const rl = await call(diet, { provider: "claude", key: KEY, scope: "day", context: ctx });
+  ok(rl.status === 200 && sent.length === 2 && sent[1].max_tokens === 16000, "429 por tokens de salida/minuto → 1 reintento con max_tokens 16000");
+  upstream = () => jres({ type: "error", error: { type: "rate_limit_error", message: "Number of requests per minute exceeded" } }, 429);
+  const rq = await call(diet, { provider: "claude", key: KEY, scope: "day", context: ctx });
+  ok(rq.json.kind === "ratelimit" && sent.length === 1, "429 por peticiones/minuto → sin reintento, ratelimit");
 }
 {
   upstream = (b, n) => n === 1
