@@ -102,6 +102,12 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       “pizza con queso y cerveza” → resumen + `lactosa/gluten/alcohol`.
       DevTools → Network: la única salida es a `/api/analyze` (mismo origen);
       ni rastro de `api.anthropic.com` en `connect-src`/peticiones.
+- [ ] **Respuesta vacía con diagnóstico**: si el proveedor devuelve 200 sin texto
+      aprovechable, el error ya no es genérico: incluye `stop=`/`finish=`, tipos de
+      bloque y uso (p. ej. `respuesta vacía (stop=end_turn, bloques=[ninguno], uso=…)`),
+      y si se cortó por límite lo dice (`max_tokens`/`length`). Foto rota o gigante
+      (>4,5 MB) → 400 claro sin llamar al proveedor. Cubierto por `node /tmp/test-analyze2.mjs`
+      (8 casos con upstream simulado).
 - [ ] **Sin clave ni proxy**: en `file://` o `python -m http.server`, Analizar usa el
       **análisis local** y el error es `network` (“sin proxy”), nunca CORS.
 - [ ] **Automático (sin navegador)**: `node --check functions/api/analyze.js` OK +
