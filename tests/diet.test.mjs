@@ -81,7 +81,8 @@ const ck = (mealId, feeling, symptoms, extra) => ({ id: "c" + t++, mealId, doneA
     "plan local explicado: hora, cantidades, pasos, alternativa y qué observar en cada comida");
   const shop = Diet.shoppingList({ meals: [{ items: ["1 plátano", "150 g de merluza", "1 cucharada de aceite de oliva"] }, { items: ["1 plátano", "aceite de oliva", "1 cucharada de aceite de oliva"] }] });
   const by = Object.fromEntries(shop.map((x) => [x.name, x.qty.join(" + ")]));
-  ok(shop.length === 3 && by["plátano"] === "1 + 1" && by["merluza"] === "150 g" && by["aceite de oliva"] === "1 cucharada + 1 cucharada",
+  ok(shop.length === 3 && by["plátano"] === "2" && by["merluza"] === "150 g" && by["aceite de oliva"] === "2 cucharadas" &&
+    Diet.shoppingList({ meals: [{ items: ["100 g de arroz", "1 taza de arroz"] }] })[0].qty.join(" + ") === "100 g + 1 taza",
     "lista de la compra: agrupa por ingrediente y suma cantidades", JSON.stringify(shop));
   const txt = Diet.planText(plan);
   ok(/DESAYUNO · 08:00/.test(txt) && /Qué observar:/.test(txt) && /1\. /.test(txt) && txt.endsWith(Diet.DISCLAIMER), "texto para compartir: horas, pasos, qué observar y aviso al final");

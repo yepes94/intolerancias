@@ -242,7 +242,20 @@
         if (qty) byName[k].qty.push(qty);
       }
     }
+    for (const x of out) x.qty = sumQty(x.qty);
     return out;
+  }
+
+  /** ["1 cucharada", "1 cucharada"] → ["2 cucharadas"]; si las unidades no casan, se dejan tal cual. */
+  function sumQty(qs) {
+    if (qs.length < 2) return qs;
+    const parts = qs.map((q) => /^(\d+(?:[.,]\d+)?)\s*(.*)$/.exec(q));
+    const unit = (p) => p[2].toLowerCase().replace(/s$/, "");
+    if (parts.some((p) => !p || unit(p) !== unit(parts[0]))) return qs;
+    const total = parts.reduce((a, p) => a + Number(p[1].replace(",", ".")), 0);
+    const u = unit(parts[0]);
+    const plural = total > 1 && /[aeiou]$/.test(u) ? u + "s" : u;
+    return [String(Math.round(total * 100) / 100).replace(".", ",") + (u ? " " + plural : "")];
   }
 
   /** Texto plano del plan para copiar o compartir (incluye el aviso). */
