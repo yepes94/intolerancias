@@ -309,8 +309,28 @@
     $("checkinCtx").textContent = meal
       ? "Sobre: " + (meal.description || "comida") + " (" + fmtDT(meal.createdAt) + ")"
       : "Registro general de cómo estás.";
-    if (!$("checkinModal").open) $("checkinModal").showModal();
+    if (!$("checkinModal").open) {
+      lockScroll();
+      $("checkinModal").showModal();
+      $("checkinFeeling").querySelector('[aria-pressed="true"]').focus({ preventScroll: true });
+      $("checkinModal").querySelector(".modal-body").scrollTop = 0;
+    }
   }
+
+  // iOS Safari ignora overflow:hidden en <html>; fijar <body> es lo único que evita el scroll del fondo.
+  let lockedScrollY = 0;
+  function lockScroll() {
+    lockedScrollY = window.scrollY;
+    document.body.style.top = -lockedScrollY + "px";
+    document.body.classList.add("scroll-locked");
+  }
+  function unlockScroll() {
+    if (!document.body.classList.contains("scroll-locked")) return;
+    document.body.classList.remove("scroll-locked");
+    document.body.style.top = "";
+    window.scrollTo({ top: lockedScrollY, behavior: "instant" });
+  }
+  $("checkinModal").addEventListener("close", unlockScroll);
 
   function latestMealId() {
     return meals.length ? meals[0].id : null;
