@@ -5,6 +5,7 @@
   const S = window.IntolStore;
   const P = window.IntolProviders;
   const D = window.IntolData;
+  const Diet = window.IntolDiet;
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s)
@@ -13,6 +14,7 @@
   // ---------- estado ----------
   let meals = S.getMeals();
   let checkins = S.getCheckins();
+  let diets = S.getDiets();
   let settings = S.getSettings();
   let draftPhoto = null;      // dataURL comprimida (full) pendiente de guardar
   let draftThumb = null;
@@ -20,6 +22,7 @@
   let modalFeeling = 3;
   let modalCheckinId = null;  // check-in programado que se está respondiendo
   let modalMealId = null;
+  let modalDietId = null;
   let modalSymptoms = new Set();
 
   // ---------- util ----------
@@ -55,6 +58,7 @@
       $("tab-" + b.dataset.tab).classList.add("active");
       if (b.dataset.tab === "timeline") renderTimeline();
       if (b.dataset.tab === "resumen") renderSummary();
+      if (b.dataset.tab === "dieta") renderDiet();
       if (b.dataset.tab === "ajustes") renderProviderStatus();
     });
   });
@@ -321,8 +325,9 @@
     }
   }
 
-  function openCheckin(checkinId, mealId) {
+  function openCheckin(checkinId, mealId, dietId) {
     modalCheckinId = checkinId || null;
+    modalDietId = dietId || null;
     modalMealId = mealId || (checkinId && checkins.find((c) => c.id === checkinId)?.mealId) || latestMealId();
     modalFeeling = 3; modalSymptoms = new Set();
     $("checkinFeeling").querySelectorAll("button").forEach((x) => {
@@ -332,7 +337,10 @@
     $("checkinNote").value = "";
     symptomChips();
     const meal = modalMealId && mealById(modalMealId);
-    $("checkinCtx").textContent = meal
+    const diet = modalDietId && diets.find((d) => d.id === modalDietId);
+    $("checkinCtx").textContent = diet
+      ? "Siguiendo: " + dietTitle(diet) + " (" + fmtDT(diet.createdAt) + ")"
+      : meal
       ? "Sobre: " + (meal.description || "comida") + " (" + fmtDT(meal.createdAt) + ")"
       : "Registro general de cómo estás.";
     if (!$("checkinModal").open) {
@@ -385,13 +393,14 @@
     } else {
       checkins.push({
         id: S.uid(), mealId: modalMealId, scheduledAt: Date.now(), doneAt: Date.now(),
-        prompt: "Registro espontáneo", feeling: modalFeeling,
-        symptoms: [...modalSymptoms], note: $("checkinNote").value.trim()
+        prompt: modalDietId ? "Check-in de dieta de prueba" : "Registro espontáneo", feeling: modalFeeling,
+        symptoms: [...modalSymptoms], note: $("checkinNote").value.trim(),
+        ...(modalDietId ? { dietId: modalDietId } : {})
       });
     }
     persist();
     $("checkinModal").close();
-    renderUpcoming(); renderTimeline(); renderSummary();
+    renderUpcoming(); renderTimeline(); renderSummary(); renderDiet();
     toast(modalFeeling <= 2 ? "Vaya 😟 · registrado. ¡Cuídate!" : "Registrado ✔");
   });
 
@@ -415,6 +424,7 @@
         "<header class='meal-head'>" +
         (m.thumb ? "<img class='meal-thumb' alt='Foto de la comida' src='" + m.thumb + "' data-full='" + m.id + "' loading='lazy' />" : "") +
         "<div class='meal-title'><strong>" + esc(m.description || "(solo foto)") + "</strong>" +
+        (m.dietId ? "<span class='pill src-diet'>🥗 Dieta de prueba</span>" : "") +
         "<time datetime='" + new Date(m.createdAt).toISOString() + "'>" + fmtDT(m.createdAt) + "</time></div></header>" +
         "<p class='meal-feeling'>Al comer: " + face + " <span class='score'>" + m.feeling0 + "/5</span></p>" +
         (ings ? "<div class='pills'>" + ings + "</div>" : "") +
@@ -550,7 +560,7 @@
   }
 
   $("exportBtn").addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify({ meals, checkins, exportedAt: new Date().toISOString() }, null, 2)],
+    const blob = new Blob([JSON.stringify({ meals, checkins, diets, exportedAt: new Date().toISOString() }, null, 2)],
       { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -560,8 +570,8 @@
   });
   $("wipeBtn").addEventListener("click", () => {
     if (!confirm("¿Borrar TODOS los datos locales (comidas, check-ins, fotos)?")) return;
-    S.wipe(); meals = []; checkins = [];
-    persist(); renderTimeline(); renderUpcoming(); renderSummary();
+    S.wipe(); meals = []; checkins = []; diets = [];
+    persist(); renderTimeline(); renderUpcoming(); renderSummary(); renderDiet();
     toast("Datos locales borrados");
   });
 
@@ -616,9 +626,205 @@
     }
   });
 
+
+  // ---------- dieta de prueba ----------
+  function dietScope() {
+    const el = document.querySelector("input[name='dietScope']:checked");
+    return el ? el.value : "day";
+  }
+  function dietTitle(d) {
+    return d.scope === "day" ? "Día completo" : Diet.SLOT_LABELS[d.slot] || "Una comida";
+  }
+  function ingLabel(id) {
+    const w = D.ONSET_WINDOWS[id];
+    return w ? w.label : id;
+  }
+
+  document.querySelectorAll("input[name='dietScope']").forEach((r) => {
+    r.addEventListener("change", () => $("dietSlotField").classList.toggle("hidden", dietScope() !== "meal"));
+  });
+
+  function renderDietSignals() {
+    const sig = Diet.buildSignals(meals, checkins);
+    const box = $("dietSignals");
+    if (!sig.mealsWithData) {
+      box.innerHTML = "<p class='hint'>Aún no hay comidas con check-ins respondidos: se propondrá una " +
+        "<strong>dieta equilibrada y ligera</strong>. Cuantos más registros, más afinado el plan.</p>";
+    } else if (!sig.suspects.length) {
+      box.innerHTML = "<p class='hint'>Sin señales claras en " + sig.mealsWithData + " comida(s) con check-ins: " +
+        "se propondrá una <strong>dieta equilibrada y ligera</strong>.</p>";
+    } else {
+      box.innerHTML = "<p><strong>Se excluirá:</strong></p><ul class='plain'>" + sig.suspects.map((x) =>
+        "<li><span class='pill src-avoid'>" + esc(ingLabel(x.id)) + "</span> " + x.bad + "/" + x.n +
+        " comidas con malestar" + (x.symptoms.length ? " (" + esc(x.symptoms.join(", ")) + ")" : "") + "</li>"
+      ).join("") + "</ul><p class='hint'>Coinciden con hinchazón, pesadez, gases o cansancio más que el resto. " +
+        "El plan priorizará comidas con energía y poca pesadez.</p>";
+    }
+    return sig;
+  }
+
+  function savePlan(plan, scope, slot, source, label, sig) {
+    const d = {
+      id: S.uid(), createdAt: Date.now(), scope, slot: scope === "meal" ? slot : "",
+      source, label,
+      mode: plan.mode, avoid: plan.avoid || [],
+      rationale: plan.rationale || "", tips: plan.tips || [],
+      meals: plan.meals, signals: sig.suspects.map((x) => ({ id: x.id, n: x.n, bad: x.bad, symptoms: x.symptoms })),
+      eaten: {}
+    };
+    diets.unshift(d);
+    S.saveDiets(diets);
+    renderDiet(d.id);
+    return d;
+  }
+
+  $("dietLocalBtn").addEventListener("click", () => {
+    const sig = renderDietSignals();
+    const scope = dietScope(), slot = $("dietSlot").value;
+    savePlan(Diet.localPlan(scope, slot, sig.avoid), scope, slot, "local", "Plan local (sin IA)", sig);
+    $("dietStatus").classList.add("hidden");
+    toast("Plan local guardado");
+  });
+
+  $("dietAskBtn").addEventListener("click", async () => {
+    const sig = renderDietSignals();
+    const scope = dietScope(), slot = $("dietSlot").value;
+    const box = $("dietStatus");
+    const prov = P.active(settings);
+    box.classList.remove("hidden");
+    if (!prov || !prov.implemented || !prov.planDiet) {
+      savePlan(Diet.localPlan(scope, slot, sig.avoid), scope, slot, "local", "Plan local (sin IA)", sig);
+      box.innerHTML = (prov ? esc(prov.label) + " aún no implementado" : "Sin clave IA") +
+        ": se ha generado un <strong>plan local</strong> con las mismas exclusiones. " +
+        "<span class='hint'>Configura Claude o Groq en Ajustes para un plan con IA.</span>";
+      return;
+    }
+    const btn = $("dietAskBtn");
+    btn.disabled = true;
+    box.innerHTML = "⏳ Pidiendo dieta a " + esc(prov.label) + "…";
+    try {
+      const plan = await prov.planDiet({ scope, slot, context: Diet.contextPayload(sig) },
+        settings.keys[prov.id], settings.model, settings);
+      savePlan(plan, scope, slot, prov.id, prov.label, sig);
+      box.classList.add("hidden");
+      toast("Plan guardado");
+    } catch (err) {
+      const info = P.describeError(err, prov.label);
+      const action = err && err.kind === "auth"
+        ? "Acción: abre Ajustes, borra la clave y pégala de nuevo completa."
+        : "Acción: pulsa de nuevo «Pedir dieta».";
+      box.innerHTML = "⚠️ " + esc(info.title) +
+        "<br><span class='hint'>" + action + " Mientras tanto, «Plan local sin IA» respeta las mismas exclusiones.</span>";
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  function eatPlanMeal(d, pm) {
+    const desc = Diet.SLOT_LABELS[pm.slot] + " (dieta de prueba): " + pm.name +
+      (pm.items && pm.items.length ? " — " + pm.items.join(", ") : "");
+    const meal = {
+      id: S.uid(), createdAt: Date.now(), description: desc, feeling0: 3,
+      ingredients: Diet.keysInText(desc).map((id) => ({ id, source: "local" })),
+      thumb: null, analysis: null, dietId: d.id, dietSlot: pm.slot
+    };
+    meals.unshift(meal);
+    scheduleCheckins(meal);
+    d.eaten = d.eaten || {};
+    d.eaten[pm.slot] = meal.createdAt;
+    persist(); S.saveDiets(diets);
+    renderUpcoming(); renderTimeline(); renderDiet(d.id);
+    toast("Registrado · check-ins programados");
+  }
+
+  function fmtAvg(st) {
+    return st.n ? st.avg.toFixed(1) + "/5 <span class='hint'>(" + st.n + ")</span>" : "<span class='hint'>sin datos</span>";
+  }
+  function fmtRate(st) {
+    return st.n ? Math.round(st.targetRate * 100) + "%" : "–";
+  }
+
+  function compareHtml(d) {
+    const c = Diet.compare(d, meals, checkins);
+    const top = (st) => st.top.length ? st.top.map((t) => esc(t.s) + " ×" + t.k).join(", ") : "–";
+    const col = (title, st, cls) => "<div class='diet-compare-col " + cls + "'><p class='diet-slot'>" + title + "</p><dl>" +
+      "<dt>Nivel medio</dt><dd>" + fmtAvg(st) + "</dd>" +
+      "<dt>Con pesadez, hinchazón o cansancio</dt><dd>" + fmtRate(st) + "</dd>" +
+      "<dt>Síntomas</dt><dd>" + top(st) + "</dd></dl></div>";
+    return "<div class='diet-compare'><p><strong>¿Cómo te sienta?</strong></p><div class='diet-compare-grid'>" +
+      col("Con el plan", c.with, "is-plan") + col("Sin plan", c.without, "is-base") + "</div>" +
+      (c.with.n ? "" : "<p class='hint'>Sigue el plan con «Comí esto» y registra cómo te sientes para comparar.</p>") +
+      "</div>";
+  }
+
+  function dietCard(d, open) {
+    const det = document.createElement("details");
+    det.className = "diet-plan";
+    det.open = !!open;
+    const conf = Diet.conflicts(d, d.avoid);
+    const done = Object.keys(d.eaten || {}).length;
+    det.innerHTML =
+      "<summary><span class='diet-plan-title'><strong>🥗 " + esc(dietTitle(d)) + "</strong>" +
+      "<time datetime='" + new Date(d.createdAt).toISOString() + "'>" + fmtDT(d.createdAt) + "</time></span>" +
+      "<span class='pill " + (d.mode === "exclusion" ? "src-avoid" : "src-local") + "'>" +
+      (d.mode === "exclusion" ? "Sin " + esc(d.avoid.map(ingLabel).join(", ").toLowerCase()) : "Equilibrada y ligera") + "</span>" +
+      "<span class='hint'>" + esc(d.label) + (done ? " · " + done + "/" + d.meals.length + " hechas" : "") + "</span></summary>" +
+      "<div class='diet-plan-body'>" +
+      "<p class='diet-disclaimer'>" + esc(Diet.DISCLAIMER) + "</p>" +
+      (d.rationale ? "<p>" + esc(d.rationale) + "</p>" : "") +
+      "<ol class='diet-meals'>" + d.meals.map((pm) =>
+        "<li data-slot='" + esc(pm.slot) + "'><p class='diet-slot'>" + esc(Diet.SLOT_LABELS[pm.slot] || pm.slot) + "</p>" +
+        "<p class='diet-dish'><strong>" + esc(pm.name) + "</strong></p>" +
+        (pm.items && pm.items.length ? "<ul class='diet-items'>" + pm.items.map((x) => "<li>" + esc(x) + "</li>").join("") + "</ul>" : "") +
+        (pm.why ? "<p class='hint'>" + esc(pm.why) + "</p>" : "") +
+        (conf[pm.slot] ? "<p class='diet-warn'>⚠️ Revisa: puede contener " + esc(conf[pm.slot].map(ingLabel).join(", ").toLowerCase()) +
+          ", que querías evitar. Cámbialo por una alternativa sin ese componente.</p>" : "") +
+        "<div class='row'>" + (d.eaten && d.eaten[pm.slot]
+          ? "<span class='hint'>✔ Registrado " + esc(fmtDT(d.eaten[pm.slot])) + "</span>"
+          : "<button class='btn small' data-eat='" + esc(pm.slot) + "'>Comí esto</button>") + "</div></li>"
+      ).join("") + "</ol>" +
+      (d.tips && d.tips.length ? "<ul class='diet-tips'>" + d.tips.map((t) => "<li>" + esc(t) + "</li>").join("") + "</ul>" : "") +
+      compareHtml(d) +
+      "<div class='row'><button class='btn small primary' data-act='feel'>Registrar cómo me siento</button>" +
+      "<button class='btn small ghost' data-act='del'>Borrar plan</button></div>" +
+      "</div>";
+    det.querySelectorAll("[data-eat]").forEach((b) => {
+      const pm = d.meals.find((x) => x.slot === b.dataset.eat);
+      b.addEventListener("click", () => eatPlanMeal(d, pm));
+    });
+    det.querySelector("[data-act='feel']").addEventListener("click", () => {
+      const last = meals.find((m) => m.dietId === d.id);
+      openCheckin(null, last ? last.id : null, d.id);
+    });
+    det.querySelector("[data-act='del']").addEventListener("click", () => {
+      if (!confirm("¿Borrar este plan? (las comidas y check-ins que registraste se mantienen)")) return;
+      diets = diets.filter((x) => x.id !== d.id);
+      S.saveDiets(diets);
+      renderDiet();
+    });
+    return det;
+  }
+
+  function renderDiet(openId) {
+    renderDietSignals();
+    const wrap = $("dietList");
+    if (!diets.length) {
+      wrap.innerHTML = "<p class='empty'>Aún no hay planes. Pide uno arriba: se guardan en este navegador.</p>";
+      return;
+    }
+    const keep = openId || (wrap.querySelector("details[open]") || {}).dataset?.id || diets[0].id;
+    wrap.innerHTML = "";
+    for (const d of diets.slice(0, 30)) {
+      const card = dietCard(d, d.id === keep);
+      card.dataset.id = d.id;
+      wrap.appendChild(card);
+    }
+  }
+
   // ---------- init ----------
   renderUpcoming();
   renderTimeline();
   renderProviderStatus();
+  renderDiet();
   armTimers();
 })();

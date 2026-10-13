@@ -1,0 +1,416 @@
+/* Intolerancias · functions/api/diet.js
+ *
+ * Proxy BYOK "Dieta de prueba con IA" (hermano de /api/analyze).
+ *
+ * Contrato:
+ *   POST /api/diet
+ *   { provider: "claude"|"groq"|"hermes"|"cursor",
+ *     key: "<clave BYOK>",
+ *     model: "<modelo claude, opcional>",
+ *     groqModel: "<modelo groq texto, opcional>",
+ *     scope: "day"|"meal",
+ *     slot: "desayuno"|"comida"|"merienda"|"cena" (solo scope "meal"),
+ *     context: { avoid: ["gluten", …], suspects: [{ id, n, bad, symptoms }],
+ *                recent: [{ d, ings, comps, f, s }], baseline },
+ *     validIngredients: ["lactosa", …] (opcional) }
+ *
+ *   200 { ok: true, provider, action: "plan", result } con result =
+ *       { mode, avoid, rationale, meals: [{ slot, name, items, why }], tips }
+ *   4xx/5xx { ok: false, kind, message } con la taxonomía de /api/analyze:
+ *       auth | network | badjson | ratelimit | badrequest | server | notimpl | unknown.
+ *
+ * Privacidad: igual que /api/analyze. La clave solo firma la llamada al
+ * proveedor: no se guarda, no se registra en logs y no se devuelve.
+ * El contexto llega ya resumido y acotado por el cliente (sin fotos).
+ */
+
+const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
+const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+const DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
+
+const FALLBACK_INGREDIENTS = [
+  "lactosa", "gluten", "fructosa", "huevo", "frutosSecos",
+  "soja", "picante", "alcohol", "cafeina", "histamina",
+];
+
+const SLOTS = ["desayuno", "comida", "merienda", "cena"];
+
+// Topes del esquema: con ellos un día completo ronda ~550 tokens de salida,
+// holgado bajo MAX_TOKENS aunque el modelo se alargue algo.
+const LIMITS = { name: 60, item: 40, items: 5, why: 140, rationale: 280, tip: 110, tips: 3, recent: 15 };
+const MAX_TOKENS = { day: 1200, meal: 700 };
+
+function clip(s, n) {
+  const t = String(s == null ? "" : s).replace(/\s+/g, " ").trim();
+  return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
+}
+
+// ---- Contexto (lo envía el cliente ya resumido; aquí solo se sanea) ----
+function sanitizeContext(raw, validKeys) {
+  const c = raw && typeof raw === "object" ? raw : {};
+  const keyOk = (x) => typeof x === "string" && validKeys.includes(x);
+  const avoid = Array.isArray(c.avoid) ? [...new Set(c.avoid.filter(keyOk))] : [];
+  const suspects = Array.isArray(c.suspects)
+    ? c.suspects.filter((s) => s && keyOk(s.id)).slice(0, 10).map((s) => ({
+      id: s.id,
+      n: Math.max(0, Math.min(999, Number(s.n) || 0)),
+      bad: Math.max(0, Math.min(999, Number(s.bad) || 0)),
+      symptoms: Array.isArray(s.symptoms) ? s.symptoms.filter((x) => typeof x === "string").map((x) => clip(x, 24)).slice(0, 5) : [],
+    }))
+    : [];
+  const recent = Array.isArray(c.recent)
+    ? c.recent.slice(0, LIMITS.recent).map((m) => ({
+      d: clip(m && m.d, 80),
+      ings: Array.isArray(m && m.ings) ? m.ings.filter(keyOk).slice(0, 6) : [],
+      comps: Array.isArray(m && m.comps) ? m.comps.filter((x) => typeof x === "string").map((x) => clip(x, 30)).slice(0, 6) : [],
+      f: m && m.f != null && isFinite(Number(m.f)) ? Math.round(Number(m.f) * 10) / 10 : null,
+      s: Array.isArray(m && m.s) ? m.s.filter((x) => typeof x === "string").map((x) => clip(x, 24)).slice(0, 5) : [],
+    }))
+    : [];
+  const baseline = c.baseline != null && isFinite(Number(c.baseline)) ? Math.round(Number(c.baseline) * 10) / 10 : null;
+  return { avoid, suspects, recent, baseline };
+}
+
+function contextText(ctx) {
+  const lines = [];
+  if (ctx.suspects.length) {
+    lines.push("Senales detectadas (componente: comidas con malestar/total, sintomas): " +
+      ctx.suspects.map((s) => `${s.id} ${s.bad}/${s.n}${s.symptoms.length ? " (" + s.symptoms.join(", ") + ")" : ""}`).join("; ") + ".");
+  } else {
+    lines.push("Sin senales claras de ningun componente.");
+  }
+  if (ctx.baseline != null) lines.push(`Nivel medio de bienestar en check-ins: ${ctx.baseline}/5.`);
+  if (ctx.recent.length) {
+    lines.push("Comidas recientes (descripcion | componentes | nivel 1-5 | sintomas):");
+    for (const m of ctx.recent) {
+      lines.push(`- ${m.d || "(sin texto)"} | ${[...m.ings, ...m.comps].join(", ") || "-"} | ${m.f == null ? "-" : m.f} | ${m.s.join(", ") || "-"}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function dietPrompt(scope, slot, ctx) {
+  const slots = scope === "day" ? SLOTS : [slot];
+  const avoidTxt = ctx.avoid.length
+    ? "EXCLUYE por completo estos componentes y cualquier alimento que los contenga: " + ctx.avoid.join(", ") + ". " +
+      "Prioriza comidas que den energia y poca pesadez (digestion ligera). "
+    : "No hay senales claras: propone una dieta equilibrada y ligera, de digestion facil. ";
+  return (
+    "Eres un asistente de diario alimentario personal. NO eres medico ni nutricionista y NO diagnosticas. " +
+    "Propon una dieta de prueba para observar como responde la digestion del usuario. " +
+    avoidTxt +
+    "Usa alimentos comunes en Espana, raciones normales, preparaciones sencillas (plancha, horno, vapor). " +
+    "Responde UNICAMENTE con un objeto JSON, sin texto antes o despues y sin bloques markdown. " +
+    "Se muy conciso (menos de ~350 palabras en total). " +
+    'Forma exacta: {"mode": "' + (ctx.avoid.length ? "exclusion" : "equilibrada") + '", ' +
+    '"avoid": [<claves excluidas de: ' + FALLBACK_INGREDIENTS.join(", ") + ">], " +
+    '"rationale": "<1 frase, max. ' + LIMITS.rationale + ' caracteres: por que este plan>", ' +
+    '"meals": [' + slots.map((s) => '{"slot": "' + s + '", "name": "<plato, max. ' + LIMITS.name +
+      ' caracteres>", "items": ["<ingrediente/racion, max. ' + LIMITS.items + ' elementos>"], "why": "<max. ' +
+      LIMITS.why + ' caracteres>"}').join(", ") + "], " +
+    '"tips": ["<max. ' + LIMITS.tips + ' consejos cortos de observacion>"]}. ' +
+    "Exactamente " + slots.length + " elemento(s) en meals, en ese orden. " +
+    "Usa comillas dobles y sin comas finales, para que sea JSON.parse valido.\n" +
+    "Datos registrados por el usuario:\n" + contextText(ctx)
+  );
+}
+
+// ---- Parseo robusto (réplica mínima del de functions/api/analyze.js) ----
+function stripFences(text) {
+  const s = String(text || "");
+  const inner = [];
+  const re = /```(?:json)?\s*([\s\S]*?)```/gi;
+  let m;
+  while ((m = re.exec(s))) inner.push(m[1]);
+  if (inner.length) return inner.join("\n");
+  return s.replace(/```/g, " ");
+}
+
+function balancedCandidates(text) {
+  const out = [];
+  let i = 0;
+  while (i < text.length) {
+    const start = text.indexOf("{", i);
+    if (start < 0) break;
+    let depth = 0, inStr = false, esc = false;
+    let closed = false;
+    for (let j = start; j < text.length; j++) {
+      const c = text[j];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (c === "\\") esc = true;
+        else if (c === '"') inStr = false;
+      } else if (c === '"') inStr = true;
+      else if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) { out.push(text.slice(start, j + 1)); i = j + 1; closed = true; break; }
+      }
+    }
+    if (!closed) break;
+  }
+  return out;
+}
+
+function repairJson(text) {
+  return String(text).replace(/,(\s*[}\]])/g, "$1").replace(/;\s*$/, "");
+}
+
+function tryParseOne(candidate) {
+  try { return JSON.parse(candidate); } catch { /* sigue */ }
+  try { return JSON.parse(repairJson(candidate)); } catch { /* sigue */ }
+  return null;
+}
+
+function normalizeSlot(s, fallback) {
+  const t = String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  if (SLOTS.includes(t)) return t;
+  if (/almuerzo|lunch/.test(t)) return "comida";
+  if (/breakfast/.test(t)) return "desayuno";
+  if (/dinner|cenar/.test(t)) return "cena";
+  if (/snack|tentempie/.test(t)) return "merienda";
+  return fallback;
+}
+
+function normalizePlan(obj, scope, slot, avoidIn, validKeys) {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
+  const valid = validKeys && validKeys.length ? validKeys : FALLBACK_INGREDIENTS;
+  const wanted = scope === "day" ? SLOTS : [slot];
+  const rawMeals = Array.isArray(obj.meals) ? obj.meals : [];
+  const meals = [];
+  rawMeals.forEach((m, i) => {
+    if (!m || typeof m !== "object") return;
+    const name = clip(m.name || m.plato, LIMITS.name);
+    if (!name) return;
+    const s = normalizeSlot(m.slot, wanted[i] || wanted[wanted.length - 1]);
+    if (!wanted.includes(s) || meals.some((x) => x.slot === s)) return;
+    const items = (Array.isArray(m.items) ? m.items : [])
+      .filter((x) => typeof x === "string").map((x) => clip(x, LIMITS.item)).filter(Boolean).slice(0, LIMITS.items);
+    meals.push({ slot: s, name, items, why: clip(m.why, LIMITS.why) });
+  });
+  if (!meals.length) return null;
+  meals.sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot));
+  // Las exclusiones del cliente mandan: la IA puede añadir, nunca quitar.
+  const avoid = [...new Set([...(avoidIn || []), ...(Array.isArray(obj.avoid) ? obj.avoid : [])]
+    .filter((x) => typeof x === "string" && valid.includes(x)))];
+  const tips = (Array.isArray(obj.tips) ? obj.tips : [])
+    .filter((x) => typeof x === "string").map((x) => clip(x, LIMITS.tip)).filter(Boolean).slice(0, LIMITS.tips);
+  return {
+    mode: avoid.length ? "exclusion" : "equilibrada",
+    avoid,
+    rationale: clip(obj.rationale || obj.resumen, LIMITS.rationale) ||
+      (avoid.length ? "Plan sin los componentes que coinciden con tus molestias." : "Plan equilibrado y ligero."),
+    meals,
+    tips,
+    complete: meals.length === wanted.length,
+  };
+}
+
+function parsePlanJson(text, providerLabel, scope, slot, avoid, validKeys, diag) {
+  const raw = String(text || "");
+  const extra = diag ? ` (${diag})` : "";
+  const cut = /max_tokens|length/i.test(diag || "") ? " Se cortó por límite de longitud: pulsa de nuevo." : "";
+  if (!raw.trim()) {
+    return { error: `${providerLabel} devolvió una respuesta vacía${extra}.${cut}` };
+  }
+  const defenced = stripFences(raw);
+  let obj = tryParseOne(defenced.trim());
+  if (!obj) {
+    for (const cand of balancedCandidates(defenced)) {
+      obj = tryParseOne(cand.trim());
+      if (obj) break;
+    }
+  }
+  const plan = obj && normalizePlan(obj, scope, slot, avoid, validKeys);
+  if (!plan) return { error: `${providerLabel} respondió pero no en el formato esperado${extra}.${cut}` };
+  return { result: plan };
+}
+
+function diagClaude(data) {
+  const blocks = Array.isArray(data.content) ? data.content.map((b) => (b && b.type) || "?").slice(0, 8) : [];
+  const use = data.usage ? `${data.usage.input_tokens || 0}→${data.usage.output_tokens || 0}` : "?";
+  return `stop=${data.stop_reason || "?"}, bloques=[${blocks.join(",") || "ninguno"}], uso=${use}`;
+}
+
+function diagGroq(data) {
+  const c = data.choices && data.choices[0];
+  const use = data.usage ? `${data.usage.prompt_tokens || 0}→${data.usage.completion_tokens || 0}` : "?";
+  return `finish=${(c && c.finish_reason) || "?"}, uso=${use}`;
+}
+
+async function readUpstreamJson(res, providerLabel) {
+  const ctype = res.headers.get("content-type") || "";
+  const text = await res.text().catch(() => "");
+  if (!/json/i.test(ctype)) {
+    return { error: `${providerLabel} devolvió un 200 no-JSON (${(ctype || "sin content-type").slice(0, 60)}).` };
+  }
+  try {
+    return { data: JSON.parse(text) };
+  } catch {
+    return { error: `${providerLabel} devolvió un JSON ilegible (${text.length} caracteres).` };
+  }
+}
+
+// ---- Respuestas ----
+function json(data, status) {
+  return new Response(JSON.stringify(data), {
+    status: status || 200,
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+  });
+}
+
+function fail(kind, message, status) {
+  return json({ ok: false, kind, message }, status || 400);
+}
+
+const RETRY = " Pulsa de nuevo «Pedir dieta».";
+
+function upstreamError(providerLabel, status, bodyText, statusText) {
+  const head = (bodyText || "").slice(0, 200) || statusText || ("HTTP " + status);
+  if (status === 401 || status === 403) {
+    return fail("auth",
+      `${providerLabel} rechazó la clave (HTTP ${status}). Revisa que la pegaste ` +
+      `completa en Ajustes y que no caducó. Detalle: ${head}`, status);
+  }
+  if (status === 429) {
+    return fail("ratelimit",
+      `${providerLabel} dice que hay demasiadas peticiones o sin cuota (HTTP 429). ` +
+      `Espera unos minutos o revisa tu plan/límites. Detalle: ${head}`, 429);
+  }
+  if (status === 400) {
+    return fail("badrequest", `${providerLabel} rechazó la petición (HTTP 400): revisa el modelo en Ajustes. Detalle: ${head}`, 400);
+  }
+  if (status >= 500) {
+    return fail("server", `${providerLabel} falla en su lado (HTTP ${status}). Reintenta en unos minutos. Detalle: ${head}`, 502);
+  }
+  return fail("unknown", `${providerLabel} ${status}: ${head}`, status);
+}
+
+// ---- Proveedores ----
+async function claudeCall({ key, model, scope, slot, ctx, validKeys }) {
+  let res;
+  try {
+    res = await fetch(CLAUDE_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({
+        model: model || DEFAULT_CLAUDE_MODEL,
+        max_tokens: MAX_TOKENS[scope],
+        messages: [{ role: "user", content: dietPrompt(scope, slot, ctx) }],
+      }),
+    });
+  } catch {
+    return fail("network", "No se pudo contactar con Claude desde el proxy (red). Reintenta en unos minutos.", 502);
+  }
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    return upstreamError("Claude", res.status, t, res.statusText);
+  }
+  const read = await readUpstreamJson(res, "Claude");
+  if (read.error) return fail("badjson", read.error + RETRY, 502);
+  const text = (read.data.content || []).map((b) => b.text || "").join("");
+  const parsed = parsePlanJson(text, "Claude", scope, slot, ctx.avoid, validKeys, diagClaude(read.data));
+  if (parsed.error) return fail("badjson", parsed.error + RETRY, 502);
+  return json({ ok: true, provider: "claude", action: "plan", result: parsed.result });
+}
+
+async function groqCall({ key, groqModel, scope, slot, ctx, validKeys }) {
+  let res;
+  try {
+    res = await fetch(GROQ_CHAT_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer " + key },
+      body: JSON.stringify({
+        model: groqModel || DEFAULT_GROQ_MODEL,
+        max_tokens: MAX_TOKENS[scope],
+        temperature: 0.4,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: "Respondes SOLO con JSON válido, sin texto adicional." },
+          { role: "user", content: dietPrompt(scope, slot, ctx) },
+        ],
+      }),
+    });
+  } catch {
+    return fail("network", "No se pudo contactar con Groq desde el proxy (red). Reintenta en unos minutos.", 502);
+  }
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    return upstreamError("Groq", res.status, t, res.statusText);
+  }
+  const read = await readUpstreamJson(res, "Groq");
+  if (read.error) return fail("badjson", read.error + RETRY, 502);
+  const c = read.data.choices && read.data.choices[0];
+  const text = (c && c.message && c.message.content) || "";
+  const parsed = parsePlanJson(text, "Groq", scope, slot, ctx.avoid, validKeys, diagGroq(read.data));
+  if (parsed.error) return fail("badjson", parsed.error + RETRY, 502);
+  return json({ ok: true, provider: "groq", action: "plan", result: parsed.result });
+}
+
+// ---- Entrada Pages Functions ----
+export async function onRequest(context) {
+  const { request } = context;
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+  }
+  if (request.method === "GET") {
+    return json({ ok: true, service: "diet-proxy", providers: ["claude", "groq"], scopes: ["day", "meal"] });
+  }
+  if (request.method !== "POST") {
+    return fail("badrequest", "Usa POST con { provider, key, scope, … }.", 405);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return fail("badrequest", "El cuerpo debe ser JSON con { provider, key, scope, … }.", 400);
+  }
+
+  const provider = String((body && body.provider) || "").toLowerCase();
+  const key = String((body && body.key) || "").trim();
+  const scope = String((body && body.scope) || "day").toLowerCase();
+  const slot = normalizeSlot(body && body.slot, "");
+
+  if (!["claude", "groq", "hermes", "cursor"].includes(provider)) {
+    return fail("badrequest", "Proveedor desconocido: usa claude, groq, hermes o cursor.", 400);
+  }
+  if (!["day", "meal"].includes(scope)) {
+    return fail("badrequest", "Alcance desconocido: usa day o meal.", 400);
+  }
+  if (scope === "meal" && !slot) {
+    return fail("badrequest", "Para una sola comida indica slot: desayuno, comida, merienda o cena.", 400);
+  }
+  if (!key) {
+    return fail("auth", "Falta la clave BYOK (viaja solo en esta petición, no se guarda). Pégala en Ajustes.", 401);
+  }
+  if (provider === "hermes" || provider === "cursor") {
+    const label = provider === "hermes" ? "Hermes" : "Cursor";
+    return fail("notimpl", `Proveedor ${label} aún no implementado.`, 501);
+  }
+
+  const validKeys = Array.isArray(body.validIngredients) && body.validIngredients.length
+    ? body.validIngredients.filter((x) => typeof x === "string")
+    : FALLBACK_INGREDIENTS;
+
+  const args = {
+    key,
+    model: String(body.model || "").trim(),
+    groqModel: String(body.groqModel || "").trim(),
+    scope,
+    slot: scope === "meal" ? slot : "",
+    ctx: sanitizeContext(body.context, validKeys),
+    validKeys,
+  };
+
+  // Sin console.log del body ni de la key.
+  try {
+    if (provider === "claude") return await claudeCall(args);
+    return await groqCall(args);
+  } catch {
+    return fail("unknown", "El proxy falló de forma inesperada. Reintenta; el plan local sigue disponible.", 500);
+  }
+}

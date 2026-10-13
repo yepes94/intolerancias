@@ -44,24 +44,37 @@ Prioridad automática: **Claude > Hermes > Groq > Cursor**.
 - **Claude**: clave en <https://console.anthropic.com/settings/keys> (`sk-ant-…`).
 
 Sin clave, funciona el **análisis local por palabras clave** (offline). Para añadir un
-proveedor basta implementar `ping` + `analyzeFood` en `js/providers.js`, sin refactorizar.
+proveedor basta implementar `ping` + `analyzeFood` (+ `planDiet`) en `js/providers.js`, sin refactorizar.
+
+## Dieta de prueba con IA
+
+Pestaña **🥗 Dieta**: pide un día completo (desayuno, comida, merienda, cena) o una sola
+comida. Si tus registros asocian un componente (p. ej. gluten, lactosa) con hinchazón,
+pesadez, gases o cansancio, el plan lo excluye y prioriza comidas con energía y poca
+pesadez; si no hay señales claras, propone una dieta equilibrada y ligera. Los planes se
+guardan en `localStorage` (`intol.diets.v1`); «Comí esto» y «Registrar cómo me siento»
+los enlazan con check-ins para comparar con/sin plan. Sin clave hay plan local de ejemplo.
+Orientativo: no sustituye a un médico ni a un nutricionista; hazte pruebas de intolerancia.
 
 ## Estructura
 
 ```text
-index.html          UI + pestañas (Registrar · Timeline · Resumen · Ajustes)
+index.html          UI + pestañas (Registrar · Timeline · Dieta · Resumen · Ajustes)
 styles.css          estilos mobile-first, tema claro/oscuro automático, sin dependencias
 js/data.js          ventanas de onset, síntomas, keywords, disclaimer
 js/store.js         localStorage + IndexedDB + compresión de fotos
 js/providers.js     abstracción BYOK vía proxy /api/analyze (Claude y Groq reales, resto stubs)
-js/app.js           UI, recordatorios, timeline, resumen
+js/diet.js          dieta de prueba: señales, plan local, conflictos, comparación (sin DOM)
+js/app.js           UI, recordatorios, timeline, dieta, resumen
 functions/api/analyze.js  proxy BYOK anti-CORS en Pages Functions (la key solo transita)
+functions/api/diet.js     proxy BYOK hermano para la dieta de prueba (misma taxonomía de errores)
+tests/diet.test.mjs       pruebas sin dependencias: node tests/diet.test.mjs
 docs/cloudflare.md  despliegue Pages + proxy BYOK
 docs/verificacion.md  plan de verificación manual
 ```
 
 ## Privacidad
 
-- Proxy same-origin `/api/analyze` (Pages Functions): el navegador nunca llama directo
+- Proxy same-origin `/api/analyze` y `/api/diet` (Pages Functions): el navegador nunca llama directo
   al proveedor (adiós CORS); la clave BYOK viaja solo en la petición, sin guardarse ni loguearse.
 - Las claves nunca se commitean: `git grep -i "sk-ant"` debe devolver vacío siempre.

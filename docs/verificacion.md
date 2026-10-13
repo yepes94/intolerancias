@@ -130,6 +130,27 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 - [ ] **Prod intacta**: `https://intolerancias.pages.dev/` sigue en 200 y este cambio
       solo **añade** `/api/analyze` sin tocar `/`, `js/*` ni docs existentes.
 
+## 9. Dieta de prueba con IA (4 min, sin clave real)
+
+- [ ] **Automático**: `node tests/diet.test.mjs` → todo OK (señales, plan local, conflictos,
+      comparación, `/api/diet` con upstream simulado, `planDiet` del cliente).
+- [ ] **Salud**: `GET /api/diet` → 200 `{"ok":true,"service":"diet-proxy",…}` (preview o
+      `npx -y wrangler pages dev . --port 8788`). Con clave falsa
+      (`{"provider":"claude","key":"sk-ant-falsa","scope":"day"}`) → `kind:"auth"`.
+- [ ] **Sin señales**: datos vacíos → pestaña **🥗 Dieta** dice “dieta equilibrada y ligera”.
+- [ ] **Con señales**: registra ≥2 comidas con gluten y responde sus check-ins con
+      hinchazón/pesadez/cansancio (o ≤2/5) y alguna sin gluten con 4–5/5 → “Se excluirá: Gluten”.
+- [ ] **Pedir dieta** sin clave → plan local que respeta la exclusión; con clave → plan IA.
+      Elige *Día completo* (4 franjas) o *Una comida* (la elegida). Si un plato menciona
+      un componente excluido aparece “⚠️ Revisa: puede contener …”.
+- [ ] **Seguir y comparar**: «Comí esto» crea la comida (🥗 en el timeline) con sus
+      check-ins; «Registrar cómo me siento» abre el check-in “Siguiendo: …”. El plan
+      muestra *Con el plan* vs *Sin plan* (nivel medio, % con pesadez/hinchazón/cansancio, síntomas).
+- [ ] **Persistencia**: recarga → los planes siguen en “Tus planes” (`intol.diets.v1`);
+      entran en *Exportar datos* y *Borrar todo* los elimina.
+- [ ] **Disclaimer** visible en la pestaña y en cada plan (médico, nutricionista, pruebas de intolerancia).
+- [ ] **Móvil 375px**: sin scroll horizontal en la pestaña Dieta ni en las tarjetas del plan.
+
 ## Criterio de aceptación
 
 Todo lo anterior en verde + `docs/verificacion.md` existe + sin claves en el repo
