@@ -60,3 +60,12 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 
 Todo lo anterior en verde + `docs/verificacion.md` existe + sin claves en el repo
 + la app abre con doble clic en `index.html` (modo degradado file://) además de por servidor local.
+
+## Gate de aceptación para PRs
+
+Sin toda la evidencia marcada en la descripción del PR (plantilla
+`.github/pull_request_template.md`) **no se pasa el PR de draft a ready ni se pide
+review**. El autor debe dejar marcada la checklist —criterios de aceptación de los
+issues vinculados, evidencia de verificación (`node --check`, rutas 200, prueba
+lógica, `grep` sin claves), cómo se probó en local y capturas/logs si aplica—
+antes de solicitar revisión. PR sin evidencia completa = draft.
