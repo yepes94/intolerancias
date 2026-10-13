@@ -80,7 +80,7 @@ ok(/m[ée]dico/.test(Diet.DISCLAIMER) && /nutricionista/.test(Diet.DISCLAIMER) &
 // ---------- 2. Function /api/diet con upstream simulado ----------
 console.log("2. functions/api/diet.js (validación, taxonomía, JSON conciso, privacidad)");
 const { onRequest } = await import(pathToFileURL(path.join(root, "functions/api/diet.js")).href);
-const KEY = "sk-ant-TEST-no-real-0000000000";
+const KEY = "fake-claude-key-not-real-0000";
 let lastUpstream = null;
 let upstream = () => new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
 globalThis.fetch = async (url, init) => { lastUpstream = { url, init, body: init && init.body ? JSON.parse(init.body) : null }; return upstream(url, init); };
@@ -122,7 +122,7 @@ const ctx = { avoid: ["gluten"], suspects: [{ id: "gluten", n: 3, bad: 3, sympto
   ok(r.json.result.meals[1].slot === "comida", "«Almuerzo» se normaliza a comida");
   ok(r.json.result.avoid.includes("gluten"), "la IA no puede quitar exclusiones del cliente (gluten se mantiene)");
   ok(r.json.result.meals[0].items.length === 5 && r.json.result.meals[1].why.length <= 140 && r.json.result.tips.length === 3, "topes: 5 items, why ≤140, 3 tips");
-  ok(lastUpstream.body.max_tokens === 1200 && lastUpstream.init.headers["x-api-key"] === KEY, "upstream Claude: max_tokens 1200 y key solo en cabecera");
+  ok(lastUpstream.body.max_tokens === 4000 && lastUpstream.init.headers["x-api-key"] === KEY, "upstream Claude: max_tokens 4000 (thinking + texto) y key solo en cabecera");
   const prompt = lastUpstream.body.messages[0].content;
   ok(/EXCLUYE.*gluten/.test(prompt) && /energia y poca pesadez/.test(prompt) && /pasta/.test(prompt), "prompt: excluye gluten, prioriza energía/poca pesadez, usa comidas registradas");
   ok(!r.text.includes(KEY), "respuesta sin eco de la key");
@@ -132,7 +132,7 @@ const ctx = { avoid: ["gluten"], suspects: [{ id: "gluten", n: 3, bad: 3, sympto
   upstream = claudeText(JSON.stringify({ meals: [{ slot: "cena", name: "Pavo", items: ["pavo"] }] }));
   const r = await call("POST", { provider: "claude", key: KEY, scope: "meal", slot: "cena", context: { avoid: [], suspects: [], recent: [] } });
   ok(r.status === 200 && r.json.result.mode === "equilibrada" && r.json.result.meals.length === 1, "una comida sin señales → equilibrada");
-  ok(lastUpstream.body.max_tokens === 700 && /equilibrada y ligera/.test(lastUpstream.body.messages[0].content), "una comida: max_tokens 700 + prompt equilibrada y ligera");
+  ok(lastUpstream.body.max_tokens === 2500 && /equilibrada y ligera/.test(lastUpstream.body.messages[0].content), "una comida: max_tokens 2500 + prompt equilibrada y ligera");
 }
 {
   upstream = claudeText("", "max_tokens");
