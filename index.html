@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Intolerancias · Asistente IA + API Keys</title>
+  <meta name="description" content="Asistente de intolerancias alimentarias con gestión de API keys de Groq, OpenAI, Anthropic, Gemini y más." />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">🌾</div>
+      <div>
+        <h1>Intolerancias <span>· Asistente IA</span></h1>
+        <p>Consulta ingredientes y gestiona tus claves de IA en un solo lugar</p>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="asistente" role="tab">💬 Asistente</button>
+      <button class="tab" data-tab="keys" role="tab">🔑 API Keys <span class="badge" id="keysBadge">0/11</span></button>
+    </nav>
+    <div class="topbar-actions">
+      <button class="theme-btn" id="themeBtn" title="Cambiar tema">🌙</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ══════════ ASISTENTE ══════════ -->
+    <section id="view-asistente" class="view active">
+      <div class="grid-2">
+        <div class="card chat-card">
+          <div class="card-head">
+            <h2>Pregunta sobre intolerancias</h2>
+            <p>Ej.: “¿Este pan sin gluten lleva lactosa?” o “¿Qué E-XXX contienen leche?”</p>
+          </div>
+
+          <div class="provider-bar">
+            <label>
+              Proveedor
+              <select id="chatProvider"></select>
+            </label>
+            <label>
+              Modelo
+              <select id="chatModel"></select>
+            </label>
+            <div class="provider-status" id="chatProviderStatus"></div>
+          </div>
+
+          <div class="chat-log" id="chatLog">
+            <div class="msg assistant">
+              <div class="avatar">🤖</div>
+              <div class="bubble">
+                <strong>¡Hola! Soy tu asistente de intolerancias.</strong><br />
+                Configura tu API key de <strong>Groq</strong> (gratis y rapidísima) o de cualquier otro
+                proveedor en la pestaña <button class="linklike" data-goto="keys">🔑 API Keys</button> y
+                luego pregúntame lo que quieras.
+              </div>
+            </div>
+          </div>
+
+          <form class="chat-input" id="chatForm">
+            <input id="chatText" type="text" autocomplete="off"
+              placeholder="Escribe tu pregunta… ej. ¿La avena tiene gluten?" />
+            <button type="submit" id="chatSend">Enviar ➤</button>
+          </form>
+          <p class="hint">⚠️ Esto no es consejo médico. Consulta siempre a un profesional sanitario.</p>
+        </div>
+
+        <aside class="card side-card">
+          <h3>🚀 Empieza en 1 minuto</h3>
+          <ol class="steps">
+            <li>Ve a <button class="linklike" data-goto="keys">🔑 API Keys</button>.</li>
+            <li>Pulsa <strong>Añadir</strong> en <strong>Groq</strong> (gratis).</li>
+            <li>Crea tu clave en <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> y pégala (empieza por <code>gsk_</code>).</li>
+            <li>Vuelve aquí, elige proveedor <strong>Groq</strong> y pregunta.</li>
+          </ol>
+          <div class="quick-providers" id="quickProviders"></div>
+          <div class="tip">
+            💡 <strong>Consejo:</strong> Groq es gratis y muy rápido para empezar.
+            Añade también OpenAI, Anthropic o Gemini si quieres comparar respuestas.
+          </div>
+          <div class="actions-row">
+            <button class="btn ghost" id="exportEnvBtn2">📤 Exportar .env</button>
+            <button class="btn ghost" data-goto="keys">Gestionar claves →</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ══════════ API KEYS ══════════ -->
+    <section id="view-keys" class="view">
+      <div class="card toolbar-card">
+        <div>
+          <h2>🔑 Tus API keys</h2>
+          <p>Se guardan <strong>solo en tu navegador</strong> (localStorage). Nada se envía a ningún servidor propio.
+          Para producción usa el <code>.env</code> del servidor (<code>npm start</code>).</p>
+        </div>
+        <div class="toolbar">
+          <input id="searchProvider" type="search" placeholder="🔍 Buscar proveedor…" />
+          <button class="btn ghost" id="exportEnvBtn">📤 Exportar .env</button>
+          <button class="btn ghost" id="exportJsonBtn">⬇️ Exportar JSON</button>
+          <button class="btn ghost" id="importJsonBtn">⬆️ Importar</button>
+          <input type="file" id="importFile" accept="application/json" hidden />
+          <button class="btn danger-ghost" id="clearAllBtn">🗑️ Borrar todas</button>
+        </div>
+      </div>
+
+      <div class="providers-grid" id="providersGrid"></div>
+
+      <div class="card">
+        <h3>❓ Preguntas frecuentes</h3>
+        <details open>
+          <summary>¿Dónde consigo cada clave?</summary>
+          <p>Cada tarjeta tiene el botón <strong>“Conseguir key ↗”</strong> que te lleva a la consola oficial del proveedor. En general: crea una cuenta → sección <em>API keys</em> → <em>Create key</em> → cópiala y pégala aquí.</p>
+        </details>
+        <details>
+          <summary>¿Es seguro guardarlas en el navegador?</summary>
+          <p>Para uso personal está bien. Las claves quedan en <code>localStorage</code> de tu dispositivo y solo se usan para llamar directamente a la API del proveedor. No las compartas ni las subas a Git. Para compartir el proyecto, usa el fichero <code>.env</code> (ya ignorado por Git) junto al proxy <code>server.js</code>.</p>
+        </details>
+        <details>
+          <summary>¿Por qué falla “Probar conexión”?</summary>
+          <p>Lo más común: clave mal copiada (espacios de más), sin saldo/límites en el proveedor, o bloqueo CORS del navegador. Si el navegador bloquea la llamada directa, arranca el proxy con <code>npm install && npm start</code> y vuelve a probar.</p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Hecho con 💚 para la comunidad de intolerancias alimentarias · Tus claves nunca salen de tu navegador salvo hacia la API oficial del proveedor.
+  </footer>
+
+  <!-- ══════════ MODAL AÑADIR / EDITAR ══════════ -->
+  <div class="modal-backdrop" id="modalBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head">
+        <div class="modal-provider" id="modalProviderIcon">⚡</div>
+        <div>
+          <h3 id="modalTitle">Añadir API key</h3>
+          <p id="modalSubtitle"></p>
+        </div>
+        <button class="icon-btn" id="modalClose" title="Cerrar">✕</button>
+      </div>
+
+      <label class="field">
+        <span>API key</span>
+        <div class="key-input-wrap">
+          <input id="modalKeyInput" type="password" placeholder="Pega aquí tu clave…" autocomplete="off" spellcheck="false" />
+          <button class="icon-btn" id="modalToggleVisible" title="Mostrar / ocultar">👁️</button>
+        </div>
+        <small class="field-hint" id="modalHint"></small>
+      </label>
+
+      <div class="modal-help">
+        <a id="modalHelpLink" href="#" target="_blank" rel="noopener">🔗 Conseguir key ↗</a>
+        <span id="modalValidation" class="validation"></span>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn ghost" id="modalCancel">Cancelar</button>
+        <button class="btn danger-ghost" id="modalDelete" hidden>Borrar</button>
+        <button class="btn primary" id="modalSave">💾 Guardar clave</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-stack" id="toastStack"></div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
