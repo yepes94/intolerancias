@@ -64,8 +64,11 @@
     $(elId).querySelectorAll("button").forEach((b) => {
       b.addEventListener("click", () => {
         set(Number(b.dataset.v));
-        $(elId).querySelectorAll("button").forEach((x) =>
-          x.classList.toggle("sel", Number(x.dataset.v) === get()));
+        $(elId).querySelectorAll("button").forEach((x) => {
+          const on = Number(x.dataset.v) === get();
+          x.classList.toggle("sel", on);
+          x.setAttribute("aria-pressed", String(on));
+        });
       });
     });
   }
@@ -185,7 +188,7 @@
     try {
       const out = await prov.analyzeFood(
         { description: desc, imageDataUrl: draftPhoto },
-        settings.keys[prov.id], settings.model);
+        settings.keys[prov.id], settings.model, settings);
       box.innerHTML = "<strong>🤖 " + esc(prov.label) + ":</strong> " + esc(out.summary) +
         "<br><strong>Pregunta de seguimiento:</strong> " + esc(out.checkinQuestion || "¿Cómo te sientes?");
       // Fusiona ingredientes detectados por IA en la próxima comida guardada
@@ -233,7 +236,7 @@
   setInterval(() => {
     const due = checkins.some((c) => !c.doneAt && c.scheduledAt <= Date.now());
     renderUpcoming();
-    if (due && !$("checkinModal").classList.contains("hidden")) return;
+    if (due && $("checkinModal").open) return;
     const first = checkins.filter((c) => !c.doneAt && c.scheduledAt <= Date.now())
       .sort((a, b) => a.scheduledAt - b.scheduledAt)[0];
     if (first && document.visibilityState === "visible" && !sessionStorage.getItem("intol.nag." + first.id)) {
@@ -259,9 +262,9 @@
       const meal = mealById(c.mealId);
       const li = document.createElement("li");
       if (c.scheduledAt <= Date.now()) li.classList.add("overdue");
-      li.innerHTML = "<span>⏰ <strong>" + esc(c.scheduledAt <= Date.now() ? "ahora" : fmtIn(c.scheduledAt - Date.now())) +
+      li.innerHTML = "<span class='checkin-text'>⏰ <strong>" + esc(c.scheduledAt <= Date.now() ? "ahora" : fmtIn(c.scheduledAt - Date.now())) +
         "</strong> · " + esc(c.prompt) +
-        (meal && meal.description ? "<br><span class='hint'>" + esc(meal.description.slice(0, 60)) + "</span>" : "") + "</span>";
+        (meal && meal.description ? "<span class='checkin-meal hint'>" + esc(meal.description) + "</span>" : "") + "</span>";
       const btn = document.createElement("button");
       btn.className = "btn small"; btn.textContent = "Responder";
       btn.addEventListener("click", () => openCheckin(c.id));
@@ -278,10 +281,11 @@
       const b = document.createElement("button");
       b.type = "button";
       b.className = "chip" + (modalSymptoms.has(s) ? " sel" : "");
+      b.setAttribute("aria-pressed", String(modalSymptoms.has(s)));
       b.textContent = s;
       b.addEventListener("click", () => {
         modalSymptoms.has(s) ? modalSymptoms.delete(s) : modalSymptoms.add(s);
-        b.classList.toggle("sel");
+        b.setAttribute("aria-pressed", String(b.classList.toggle("sel")));
       });
       wrap.appendChild(b);
     }
@@ -291,14 +295,17 @@
     modalCheckinId = checkinId || null;
     modalMealId = mealId || (checkinId && checkins.find((c) => c.id === checkinId)?.mealId) || latestMealId();
     modalFeeling = 3; modalSymptoms = new Set();
-    $("checkinFeeling").querySelectorAll("button").forEach((x) => x.classList.toggle("sel", x.dataset.v === "3"));
+    $("checkinFeeling").querySelectorAll("button").forEach((x) => {
+      x.classList.toggle("sel", x.dataset.v === "3");
+      x.setAttribute("aria-pressed", String(x.dataset.v === "3"));
+    });
     $("checkinNote").value = "";
     symptomChips();
     const meal = modalMealId && mealById(modalMealId);
     $("checkinCtx").textContent = meal
       ? "Sobre: " + (meal.description || "comida") + " (" + fmtDT(meal.createdAt) + ")"
       : "Registro general de cómo estás.";
-    $("checkinModal").classList.remove("hidden");
+    if (!$("checkinModal").open) $("checkinModal").showModal();
   }
 
   function latestMealId() {
@@ -306,14 +313,14 @@
   }
 
   $("quickCheckinBtn").addEventListener("click", () => openCheckin(null, null));
-  $("checkinClose").addEventListener("click", () => $("checkinModal").classList.add("hidden"));
+  $("checkinClose").addEventListener("click", () => $("checkinModal").close());
   $("checkinSnooze").addEventListener("click", () => {
     if (modalCheckinId) {
       const c = checkins.find((x) => x.id === modalCheckinId);
       if (c) c.scheduledAt = Date.now() + 30 * 60e3;
       persist();
     }
-    $("checkinModal").classList.add("hidden");
+    $("checkinModal").close();
     renderUpcoming(); toast("Pospuesto 30 min");
   });
   $("checkinSave").addEventListener("click", () => {
@@ -333,7 +340,7 @@
       });
     }
     persist();
-    $("checkinModal").classList.add("hidden");
+    $("checkinModal").close();
     renderUpcoming(); renderTimeline(); renderSummary();
     toast(modalFeeling <= 2 ? "Vaya 😟 · registrado. ¡Cuídate!" : "Registrado ✔");
   });
@@ -355,14 +362,16 @@
         .sort((a, b) => a.doneAt - b.doneAt);
       const face = ["", "😖", "🙁", "😐", "🙂", "😄"][m.feeling0] || "😐";
       card.innerHTML =
-        "<header><strong>" + esc(m.description || "(solo foto)") + "</strong><time>" + fmtDT(m.createdAt) + "</time></header>" +
-        "<div>Al comer: " + face + " " + m.feeling0 + "/5</div>" +
+        "<header class='meal-head'>" +
+        (m.thumb ? "<img class='meal-thumb' alt='Foto de la comida' src='" + m.thumb + "' data-full='" + m.id + "' loading='lazy' />" : "") +
+        "<div class='meal-title'><strong>" + esc(m.description || "(solo foto)") + "</strong>" +
+        "<time datetime='" + new Date(m.createdAt).toISOString() + "'>" + fmtDT(m.createdAt) + "</time></div></header>" +
+        "<p class='meal-feeling'>Al comer: " + face + " <span class='score'>" + m.feeling0 + "/5</span></p>" +
         (ings ? "<div class='pills'>" + ings + "</div>" : "") +
-        (m.thumb ? "<img alt='Foto de la comida' src='" + m.thumb + "' data-full='" + m.id + "' loading='lazy' />" : "") +
         "<div class='follow'>" +
         (follows.length
-          ? follows.map((c) => "✔ " + fmtDT(c.doneAt) + " → <strong>" + c.feeling + "/5</strong> " +
-            esc((c.symptoms || []).join(", ")) + (c.note ? " · “" + esc(c.note) + "”" : "")).join("<br>")
+          ? "<ul class='follow-list'>" + follows.map((c) => "<li>✔ <time>" + fmtDT(c.doneAt) + "</time> → <strong class='score'>" + c.feeling + "/5</strong> " +
+            esc((c.symptoms || []).join(", ")) + (c.note ? " · “" + esc(c.note) + "”" : "") + "</li>").join("") + "</ul>"
           : "<span class='hint'>Sin check-ins respondidos todavía.</span>") +
         "</div>";
       const row = document.createElement("div");
@@ -478,6 +487,7 @@
     $("key-groq").value = settings.keys.groq || "";
     $("key-cursor").value = settings.keys.cursor || "";
     $("claudeModel").value = settings.model || D.DEFAULT_MODEL;
+    $("groqModel").value = settings.groqModel || D.GROQ_MODEL;
   }
 
   $("saveKeysBtn").addEventListener("click", () => {
@@ -489,6 +499,7 @@
     };
     Object.keys(settings.keys).forEach((k) => { if (!settings.keys[k]) delete settings.keys[k]; });
     settings.model = $("claudeModel").value.trim() || D.DEFAULT_MODEL;
+    settings.groqModel = $("groqModel").value.trim() || D.GROQ_MODEL;
     S.saveSettings(settings);
     renderProviderStatus();
     $("providerMsg").textContent = "Claves guardadas solo en este navegador. Nunca se commitean.";
