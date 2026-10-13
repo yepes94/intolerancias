@@ -37,13 +37,23 @@ const FALLBACK_INGREDIENTS = [
 
 const SLOTS = ["desayuno", "comida", "merienda", "cena"];
 
-// Topes del esquema: con ellos un día completo ronda ~550 tokens de texto.
-// MAX_TOKENS es el total de salida (thinking + texto): deja margen al
-// thinking de los modelos que no permiten apagarlo (ver claudeThinking).
-const LIMITS = { name: 60, item: 40, items: 5, why: 140, rationale: 280, tip: 110, tips: 3, recent: 15 };
-const MAX_TOKENS = { day: 4000, meal: 2500 };
-// Groq (Llama) no razona y reserva max_tokens en su cuota por minuto.
-const GROQ_MAX_TOKENS = { day: 1200, meal: 700 };
+// Topes de saneado (no de tokens): protegen la UI y el localStorage de
+// respuestas desbocadas sin recortar un plan bien explicado.
+const LIMITS = {
+  name: 120, item: 120, items: 12, step: 300, steps: 8, why: 500, swap: 300, watch: 300,
+  rationale: 800, tip: 300, tips: 6, recent: 15,
+};
+// Sin tope propio para la dieta: la API de Claude exige max_tokens, así que
+// se pide el máximo de salida del modelo (doc de modelos, oct-2026).
+const CLAUDE_MAX_OUTPUT_FALLBACK = 32000;
+function claudeMaxOutput(model) {
+  const m = String(model || "").toLowerCase();
+  if (/^claude-(opus-4-[678]|(opus|sonnet|haiku)-5|fable|mythos)/.test(m)) return 128000;
+  return 64000;
+}
+// Groq: sin max_tokens usa el máximo del modelo, pero en el plan gratuito
+// puede rechazar la petición por cuota de tokens/minuto; entonces se reintenta con este.
+const GROQ_RETRY_MAX_TOKENS = 8192;
 
 function clip(s, n) {
   const t = String(s == null ? "" : s).replace(/\s+/g, " ").trim();
@@ -105,15 +115,18 @@ function dietPrompt(scope, slot, ctx) {
     "Propon una dieta de prueba para observar como responde la digestion del usuario. " +
     avoidTxt +
     "Usa alimentos comunes en Espana, raciones normales, preparaciones sencillas (plancha, horno, vapor). " +
+    "Explica bien el plan para que el usuario pueda seguirlo sin dudas: cantidades orientativas, " +
+    "pasos de preparacion sencillos, por que ayuda, una alternativa equivalente y que observar despues. " +
     "Responde UNICAMENTE con un objeto JSON, sin texto antes o despues y sin bloques markdown. " +
-    "Se muy conciso (menos de ~350 palabras en total). " +
     'Forma exacta: {"mode": "' + (ctx.avoid.length ? "exclusion" : "equilibrada") + '", ' +
     '"avoid": [<claves excluidas de: ' + FALLBACK_INGREDIENTS.join(", ") + ">], " +
-    '"rationale": "<1 frase, max. ' + LIMITS.rationale + ' caracteres: por que este plan>", ' +
-    '"meals": [' + slots.map((s) => '{"slot": "' + s + '", "name": "<plato, max. ' + LIMITS.name +
-      ' caracteres>", "items": ["<ingrediente/racion, max. ' + LIMITS.items + ' elementos>"], "why": "<max. ' +
-      LIMITS.why + ' caracteres>"}').join(", ") + "], " +
-    '"tips": ["<max. ' + LIMITS.tips + ' consejos cortos de observacion>"]}. ' +
+    '"rationale": "<2-3 frases: por que este plan segun sus registros>", ' +
+    '"meals": [' + slots.map((s) => '{"slot": "' + s + '", "time": "<hora orientativa HH:MM>", ' +
+      '"name": "<nombre del plato>", "items": ["<ingrediente con cantidad, ej. 150 g de merluza>"], ' +
+      '"steps": ["<paso de preparacion>"], "why": "<por que ayuda a la digestion y da energia>", ' +
+      '"swap": "<alternativa equivalente que respete las exclusiones>", ' +
+      '"watch": "<que observar y cuando, ej. hinchazon 1-2 h despues>"}').join(", ") + "], " +
+    '"tips": ["<consejos para seguir el plan y observar la digestion>"]}. ' +
     "Exactamente " + slots.length + " elemento(s) en meals, en ese orden. " +
     "Usa comillas dobles y sin comas finales, para que sea JSON.parse valido.\n" +
     "Datos registrados por el usuario:\n" + contextText(ctx)
@@ -189,9 +202,19 @@ function normalizePlan(obj, scope, slot, avoidIn, validKeys) {
     if (!name) return;
     const s = normalizeSlot(m.slot, wanted[i] || wanted[wanted.length - 1]);
     if (!wanted.includes(s) || meals.some((x) => x.slot === s)) return;
-    const items = (Array.isArray(m.items) ? m.items : [])
-      .filter((x) => typeof x === "string").map((x) => clip(x, LIMITS.item)).filter(Boolean).slice(0, LIMITS.items);
-    meals.push({ slot: s, name, items, why: clip(m.why, LIMITS.why) });
+    const list = (v, n, max) => (Array.isArray(v) ? v : [])
+      .filter((x) => typeof x === "string").map((x) => clip(x, n)).filter(Boolean).slice(0, max);
+    const time = /^([01]?\d|2[0-3])[:.h]([0-5]\d)$/.exec(String(m.time || "").trim());
+    meals.push({
+      slot: s,
+      ...(time ? { time: time[1].padStart(2, "0") + ":" + time[2] } : {}),
+      name,
+      items: list(m.items, LIMITS.item, LIMITS.items),
+      steps: list(m.steps, LIMITS.step, LIMITS.steps),
+      why: clip(m.why, LIMITS.why),
+      swap: clip(m.swap, LIMITS.swap),
+      watch: clip(m.watch, LIMITS.watch),
+    });
   });
   if (!meals.length) return null;
   meals.sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot));
@@ -262,20 +285,30 @@ function claudeThinking(model) {
 
 // Un modelo que no conocemos puede rechazar thinking/effort con 400: se
 // reintenta una vez sin esos campos antes de dar el error.
+// Y si rechaza max_tokens por encima de su máximo, se reintenta con el que
+// indique el propio error (o un valor seguro).
 async function claudeFetch(key, body) {
   const send = (b) => fetch(CLAUDE_URL, {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
     body: JSON.stringify(b),
   });
-  const res = await send(body);
-  if (res.status !== 400 || !(body.thinking || body.output_config)) return { res };
-  const t = await res.clone().text().catch(() => "");
-  if (!/thinking|effort|output_config/i.test(t)) return { res };
-  const plain = { ...body };
-  delete plain.thinking;
-  delete plain.output_config;
-  return { res: await send(plain) };
+  let current = body;
+  let res = await send(current);
+  for (let i = 0; i < 2 && res.status === 400; i++) {
+    const t = await res.clone().text().catch(() => "");
+    const next = { ...current };
+    if (/max_tokens/i.test(t) && current.max_tokens > CLAUDE_MAX_OUTPUT_FALLBACK) {
+      const allowed = Number((/(\d{4,6})\D{0,40}maximum/i.exec(t) || [])[1]);
+      next.max_tokens = allowed && allowed < current.max_tokens ? allowed : CLAUDE_MAX_OUTPUT_FALLBACK;
+    } else if (/thinking|effort|output_config/i.test(t) && (current.thinking || current.output_config)) {
+      delete next.thinking;
+      delete next.output_config;
+    } else break;
+    current = next;
+    res = await send(current);
+  }
+  return { res };
 }
 
 function claudeText(data) {
@@ -345,7 +378,7 @@ async function claudeCall({ key, model, scope, slot, ctx, validKeys }) {
   try {
     ({ res } = await claudeFetch(key, {
       model: m,
-      max_tokens: MAX_TOKENS[scope],
+      max_tokens: claudeMaxOutput(m),
       ...claudeThinking(m),
       messages: [{ role: "user", content: dietPrompt(scope, slot, ctx) }],
     }));
@@ -365,22 +398,27 @@ async function claudeCall({ key, model, scope, slot, ctx, validKeys }) {
 }
 
 async function groqCall({ key, groqModel, scope, slot, ctx, validKeys }) {
+  const body = {
+    model: groqModel || DEFAULT_GROQ_MODEL,
+    temperature: 0.4,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: "Respondes SOLO con JSON válido, sin texto adicional." },
+      { role: "user", content: dietPrompt(scope, slot, ctx) },
+    ],
+  };
+  const send = (b) => fetch(GROQ_CHAT_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: "Bearer " + key },
+    body: JSON.stringify(b),
+  });
   let res;
   try {
-    res = await fetch(GROQ_CHAT_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: "Bearer " + key },
-      body: JSON.stringify({
-        model: groqModel || DEFAULT_GROQ_MODEL,
-        max_tokens: GROQ_MAX_TOKENS[scope],
-        temperature: 0.4,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: "Respondes SOLO con JSON válido, sin texto adicional." },
-          { role: "user", content: dietPrompt(scope, slot, ctx) },
-        ],
-      }),
-    });
+    res = await send(body);
+    if (res.status === 413 || res.status === 429) {
+      const t = await res.clone().text().catch(() => "");
+      if (/too large|tokens per minute|tpm/i.test(t)) res = await send({ ...body, max_tokens: GROQ_RETRY_MAX_TOKENS });
+    }
   } catch {
     return fail("network", "No se pudo contactar con Groq desde el proxy (red). Reintenta en unos minutos.", 502);
   }
