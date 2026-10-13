@@ -75,6 +75,19 @@ const ck = (mealId, feeling, symptoms, extra) => ({ id: "c" + t++, mealId, doneA
   ok(c.with.n === 2 && c.with.avg === 4.5 && c.with.targetRate === 0, "comparación: check-ins enlazados (por comida y por dietId)");
   ok(c.without.n === 2 && c.without.avg === 1.5 && c.without.targetRate === 1, "comparación: resto de check-ins sin plan");
 }
+{
+  const plan = Diet.localPlan("day", "", []);
+  ok(plan.meals.every((m) => /^\d\d:\d\d$/.test(m.time) && m.steps.length >= 2 && m.swap && m.watch && m.items.some((x) => /\d/.test(x))),
+    "plan local explicado: hora, cantidades, pasos, alternativa y qué observar en cada comida");
+  const shop = Diet.shoppingList({ meals: [{ items: ["1 plátano", "150 g de merluza", "1 cucharada de aceite de oliva"] }, { items: ["1 plátano", "aceite de oliva", "1 cucharada de aceite de oliva"] }] });
+  const by = Object.fromEntries(shop.map((x) => [x.name, x.qty.join(" + ")]));
+  ok(shop.length === 3 && by["plátano"] === "1 + 1" && by["merluza"] === "150 g" && by["aceite de oliva"] === "1 cucharada + 1 cucharada",
+    "lista de la compra: agrupa por ingrediente y suma cantidades", JSON.stringify(shop));
+  const txt = Diet.planText(plan);
+  ok(/DESAYUNO · 08:00/.test(txt) && /Qué observar:/.test(txt) && /1\. /.test(txt) && txt.endsWith(Diet.DISCLAIMER), "texto para compartir: horas, pasos, qué observar y aviso al final");
+  const old = Diet.planText({ meals: [{ slot: "cena", name: "Pavo", items: ["pavo"], why: "ligero" }] });
+  ok(/CENA — Pavo/.test(old), "planes antiguos sin campos nuevos siguen funcionando");
+}
 ok(/m[ée]dico/.test(Diet.DISCLAIMER) && /nutricionista/.test(Diet.DISCLAIMER) && /pruebas de intolerancia/.test(Diet.DISCLAIMER), "disclaimer: médico + nutricionista + pruebas de intolerancia");
 
 // ---------- 2. Function /api/diet con upstream simulado ----------
