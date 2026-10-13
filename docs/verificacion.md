@@ -14,9 +14,18 @@ npx serve .
 
 Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 
+## 0. Navegación (1 min)
+
+- [ ] **Móvil 375px / 390px**: barra inferior fija con icono + etiqueta; ninguna etiqueta se
+      parte ni se corta, cada pestaña mide ≥44px de alto y la barra respeta el área segura
+      inferior (iPhone). La activa se ve en color de marca, negrita y con fondo tras el icono.
+- [ ] **Desktop (≥768px)**: control segmentado en la cabecera sticky, activa con borde de marca.
+- [ ] Teclado: `Tab` muestra foco visible en cada pestaña; la activa lleva `aria-current="page"`.
+- [ ] El final de página (pie) y el toast no quedan tapados por la barra.
+
 ## 1. Registrar comida (2 min)
 
-- [ ] Pestaña **＋ Registrar**: escribe “pizza con queso y cerveza”, marca 3/5 y pulsa **Guardar comida**.
+- [ ] Pestaña **✍️ Registrar**: escribe “pizza con queso y cerveza”, marca 3/5 y pulsa **Guardar comida**.
 - [ ] Aparece en **Timeline** con pastillas `Lactosa` y `Gluten` (análisis local por palabras clave).
 - [ ] En **Próximos check-ins** hay avisos programados (2 h, 6 h, 24 h + ventanas de ingrediente).
 - [ ] Recarga la página: la comida **persiste** (localStorage).
