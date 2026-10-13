@@ -41,7 +41,7 @@
 
   const DISCLAIMER = "Orientativo, no médico: no diagnostica intolerancias ni sustituye una prueba médica real con un profesional sanitario.";
 
-  const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+  const DEFAULT_MODEL = "claude-sonnet-5-5";
 
   // Groq (API compatible con OpenAI): texto rápido y barato.
   const GROQ_MODEL = "llama-3.3-70b-versatile";
