@@ -678,7 +678,9 @@ input[type="file"]::file-selector-button {
 
 .reminder p { margin: 0; font-weight: 600; }
 
-/* Botón flotante del diario: siempre a mano. --fab-offset deja sitio a una barra inferior. */
+/* Botón flotante del diario: siempre a mano, por encima de la barra inferior si la hay (--nav-h). */
+:root { --fab-offset: var(--nav-h, 0px); }
+
 .fab {
   position: fixed;
   z-index: 20;
@@ -708,6 +710,11 @@ input[type="file"]::file-selector-button {
 .fab:active { scale: 0.97; }
 
 main { padding-block-end: calc(var(--space-l) + 4rem + var(--fab-offset, 0px)); }
+
+/* El toast sube por encima del botón flotante. */
+:root:has(.fab) .toast {
+  inset-block-end: calc(var(--fab-offset, 0px) + 4.5rem + env(safe-area-inset-bottom, 0px));
+}
 
 /* ---------- timeline ---------- */
 .timeline {
@@ -1284,7 +1291,7 @@ ul.plain li:last-child { border-block-end: 0; }
 .toast {
   position: fixed;
   inset-inline: 0;
-  inset-block-end: calc(var(--space-l) + 3.5rem + var(--fab-offset, 0px) + env(safe-area-inset-bottom, 0px));
+  inset-block-end: calc(var(--space-l) + env(safe-area-inset-bottom, 0px));
   z-index: 30;
   inline-size: fit-content;
   max-inline-size: calc(100% - 2rem);
