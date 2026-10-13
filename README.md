@@ -40,7 +40,7 @@ proveedor basta implementar `ping` + `analyzeFood` en `js/providers.js`, sin ref
 
 ```text
 index.html          UI + pestañas (Registrar · Timeline · Resumen · Ajustes)
-styles.css          estilos mobile-first, sin dependencias
+styles.css          estilos mobile-first, tema claro/oscuro automático, sin dependencias
 js/data.js          ventanas de onset, síntomas, keywords, disclaimer
 js/store.js         localStorage + IndexedDB + compresión de fotos
 js/providers.js     abstracción BYOK (Claude real, resto stubs)
