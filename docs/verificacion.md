@@ -18,7 +18,7 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 
 - [ ] Pestaña **＋ Registrar**: escribe “pizza con queso y cerveza”, marca 3/5 y pulsa **Guardar comida**.
 - [ ] Aparece en **Timeline** con pastillas `Lactosa` y `Gluten` (análisis local por palabras clave).
-- [ ] En **Próximos check-ins** hay avisos programados (2 h, 6 h, 24 h + ventanas de ingrediente).
+- [ ] Guardar la comida **no programa avisos** (ya no hay «Próximos check-ins» ni badge).
 - [ ] Recarga la página: la comida **persiste** (localStorage).
 
 ## 2. Foto comprimida (1 min)
@@ -27,16 +27,16 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 - [ ] DevTools → Application → IndexedDB → `intol-photos`: hay una entrada (foto completa).
 - [ ] DevTools → Application → Local Storage: solo hay miniatura (`thumb`), no la foto completa.
 
-## 3. Check-ins y notificaciones (2 min)
+## 3. Diario de síntomas (2 min) — detalle en §10
 
-- [ ] Pulsa **🔔 Activar notificaciones** y acepta el permiso.
-- [ ] Pulsa **Responder** en un check-in pendiente: elige 2/5 + síntoma “hinchazón” → Guardar.
-- [ ] El timeline muestra `✔ … → 2/5 hinchazón` bajo la comida.
-- [ ] **Posponer 30 min** mueve el aviso (visible en Próximos check-ins).
+- [ ] Botón flotante **📝 ¿Cómo te sientes?** (en cualquier pestaña) → escribe
+      “tripa hinchada y gases”, nivel 2 → **Guardar y buscar causas**.
+- [ ] El timeline muestra la entrada 📝 con `hinchazón`, `gases` y las posibles causas
+      (la pizza del paso 1, con probabilidad y motivo); bajo la comida aparece `📝 … → 2/5`.
 
 ## 4. Resumen y descarte (2 min)
 
-- [ ] Registra ≥2 comidas con lactosa y responde sus check-ins con 1–2/5.
+- [ ] Registra ≥2 comidas con lactosa y escribe en el diario, después de cada una, que te sentó mal (o nivel 1–2).
 - [ ] Pestaña **📊 Resumen**: `Lactosa` sale en “Sienta mal” y aparece la tarjeta
       “🧪 Prueba a no comer lactosa…”.
 - [ ] **Exportar datos** descarga un JSON; **Borrar todo** limpia localStorage + IndexedDB.
@@ -113,7 +113,7 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       holgada en `max_tokens: 1000`. El JSON trae además `food` (alimento detectado,
       ej. "pan blanco de molde") y `components` (ej. gluten, trigo, fructanos, soja,
       posible lactosa); `ingredients` sigue siendo solo claves de taxonomía (lo único
-      que programa check-ins). Campos aditivos: clientes sin ellos siguen funcionando.
+      que se guarda como pastilla de ingrediente). Campos aditivos: clientes sin ellos siguen funcionando.
       Cubierto por el arnés 2 (casos 9–12).
 - [ ] **El análisis no se pierde**: tras **Analizar con IA**, guarda la comida →
       el timeline muestra el bloque 🤖 (proveedor + alimento + componentes + resumen)
@@ -138,8 +138,8 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       `npx -y wrangler pages dev . --port 8788`). Con clave falsa
       (`{"provider":"claude","key":"sk-ant-falsa","scope":"day"}`) → `kind:"auth"`.
 - [ ] **Sin señales**: datos vacíos → pestaña **🥗 Dieta** dice “dieta equilibrada y ligera”.
-- [ ] **Con señales**: registra ≥2 comidas con gluten y responde sus check-ins con
-      hinchazón/pesadez/cansancio (o ≤2/5) y alguna sin gluten con 4–5/5 → “Se excluirá: Gluten”.
+- [ ] **Con señales**: registra ≥2 comidas con gluten y escribe en el diario (en las 24 h
+      siguientes) hinchazón/pesadez/cansancio (o ≤2/5), y alguna sin gluten con 4–5/5 → “Se excluirá: Gluten”.
 - [ ] **Pedir dieta** sin clave → plan local que respeta la exclusión; con clave → plan IA.
       Elige *Día completo* (4 franjas) o *Una comida* (la elegida). Si un plato menciona
       un componente excluido aparece “⚠️ Revisa: puede contener …”.
@@ -150,8 +150,8 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       agrupados y cantidades sumadas) y «Compartir plan» (hoja de compartir del móvil o
       copia al portapapeles, con el aviso al final). Un plan guardado antes de este cambio
       se sigue viendo, sin los bloques que no tiene.
-- [ ] **Seguir y comparar**: «Comí esto» crea la comida (🥗 en el timeline) con sus
-      check-ins; «Registrar cómo me siento» abre el check-in “Siguiendo: …”. El plan
+- [ ] **Seguir y comparar**: «Comí esto» crea la comida (🥗 en el timeline);
+      «Registrar cómo me siento» abre el diario “Siguiendo: …”. El plan
       muestra *Con el plan* vs *Sin plan* (nivel medio, % con pesadez/hinchazón/cansancio, síntomas).
 - [ ] **Persistencia**: recarga → los planes siguen en “Tus planes” (`intol.diets.v1`);
       entran en *Exportar datos* y *Borrar todo* los elimina.
@@ -169,6 +169,32 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       preview: Ajustes → modelo `claude-sonnet-5-5` (u Opus 5.5) → **Pedir dieta** *Día completo*
       → 4 comidas, sin «Se cortó por límite». Si aun así se corta, el error dice
       «el razonamiento interno del modelo agotó el límite».
+
+## 10. Diario de síntomas y recordatorio de las 21:00 (5 min, sin clave real)
+
+- [ ] **Automático**: `node tests/diary.test.mjs` → todo OK (síntomas del texto, ventana de 24 h,
+      análisis local, migración de check-ins, recordatorio, `/api/diary` con upstream simulado,
+      `analyzeDiary` del cliente, store).
+- [ ] **Salud**: `GET /api/diary` → 200 `{"ok":true,"service":"diary-proxy",…}`. Con clave falsa
+      (`{"provider":"claude","key":"sk-ant-falsa","entry":{"text":"tripa hinchada"},"meals":[]}`) → `kind:"auth"`.
+- [ ] **Sin clave**: al guardar, la entrada muestra «🔎 Análisis local (sin IA) · posibles causas»
+      (componentes de las comidas de las 24 h × ventana típica × síntomas que cuentas).
+- [ ] **Con clave**: «🤖 Claude/Groq · posibles causas». DevTools → Network: la única salida es
+      `POST /api/diary` con el texto y las comidas resumidas (sin `data:image`, sin ids internos).
+      Si la IA falla, se ve el análisis local con «La IA no respondió: …». **🔄 Reanalizar** repite.
+- [ ] **Entrada positiva** (nivel 4–5 sin molestias): se guarda sin buscar causas.
+- [ ] **Señal de alarma** (“me cuesta respirar”, “sangre”…): aviso 🚑 de atención médica.
+- [ ] **Recordatorio**: con una comida hoy y el diario vacío, a la hora de Ajustes (21:00 por
+      defecto) aparece el banner en la app y, con permiso, un aviso del sistema (app abierta o en
+      segundo plano). **Probar aviso** en Ajustes lo muestra al momento. Escribir una entrada lo
+      quita; «Ahora no» lo descarta ese día. Al abrir al día siguiente sin haber escrito: «Ayer
+      registraste… ¿Lo apuntas ahora?» y la hora propuesta es ayer a las 21:00.
+- [ ] **App cerrada**: no llega aviso (no hay servidor de push); al abrirla se ve el pendiente.
+      En iPhone, las notificaciones solo existen con la app añadida a la pantalla de inicio.
+- [ ] **Migración**: con check-ins respondidos del sistema anterior (`intol.checkins.v1`), al abrir
+      aparecen como «Check-in (histórico)» con su nivel, síntomas, nota y comida; los pendientes no.
+      La clave antigua no se borra; **Exportar** incluye `diary` y `checkinsLegacy`.
+- [ ] **Móvil 375px**: sin scroll horizontal en el sheet del diario ni en el timeline.
 
 ## Criterio de aceptación
 

@@ -29,6 +29,7 @@
   let activeMealFeeling = 3;
   let diaryLevel = null;
   let diaryDietId = null;
+  let diaryAtFixed = null;    // hora propuesta (p. ej. ayer 21:00) o editada; null = «ahora» al guardar
   const analyzing = new Set();
   const FACES = ["", "😖", "🙁", "😐", "🙂", "😄"];
 
@@ -344,8 +345,7 @@
   });
 
   function updateDiaryCtx() {
-    const at = fromLocalInput($("diaryAt").value);
-    const n = Diary.windowMeals(meals, at).length;
+    const n = Diary.windowMeals(meals, diaryAtFixed || Date.now()).length;
     const diet = diaryDietId && diets.find((d) => d.id === diaryDietId);
     $("diaryCtx").textContent = (diet ? "Siguiendo: " + dietTitle(diet) + ". " : "") + (n
       ? "Se cruzará con " + n + " comida(s) de las 24 h anteriores."
@@ -356,12 +356,16 @@
       (Diary.redFlags(text) ? " ⚠️ Si es intenso o empeora, busca atención médica (112)." : "");
   }
   $("diaryText").addEventListener("input", updateDiaryCtx);
-  $("diaryAt").addEventListener("change", updateDiaryCtx);
+  $("diaryAt").addEventListener("change", () => {
+    diaryAtFixed = fromLocalInput($("diaryAt").value);
+    updateDiaryCtx();
+  });
 
   function openDiary(opts) {
     const o = opts || {};
     diaryDietId = o.dietId || null;
     diaryLevel = null;
+    diaryAtFixed = o.at || null;
     $("diaryText").value = "";
     $("diaryAt").value = toLocalInput(o.at || Date.now());
     $("diaryAt").max = toLocalInput(Date.now() + 60e3);
@@ -398,7 +402,7 @@
     if (!text) { toast("Cuenta cómo te sientes"); $("diaryText").focus(); return; }
     const e = {
       id: S.uid(),
-      at: Math.min(fromLocalInput($("diaryAt").value), Date.now()),
+      at: Math.min(diaryAtFixed || Date.now(), Date.now()),
       createdAt: Date.now(),
       text: text.slice(0, 1500),
       level: diaryLevel,
@@ -407,7 +411,7 @@
       ...(diaryDietId ? { dietId: diaryDietId } : {})
     };
     diary.push(e);
-    diary.sort((a, b) => b.at - a.at);
+    diary.sort((a, b) => b.at - a.at || b.createdAt - a.createdAt);
     persist();
     $("diaryModal").close();
     showTab("timeline");
