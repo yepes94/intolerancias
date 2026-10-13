@@ -536,6 +536,16 @@ input[type="file"]::file-selector-button {
   background: var(--accent-subtle);
   font-size: var(--step--1);
 }
+.ai-analysis {
+  padding: var(--space-s) var(--space-m);
+  border-inline-start: 4px solid var(--info, #4a7fb5);
+  border-start-end-radius: var(--radius-s);
+  border-end-end-radius: var(--radius-s);
+  background: var(--accent-subtle);
+  font-size: var(--step--1);
+}
+.ai-analysis p { margin: 0 0 var(--space-xs); }
+.ai-analysis .field { margin-block-end: var(--space-xs); }
 
 /* ---------- upcoming check-ins ---------- */
 .checkin-list {

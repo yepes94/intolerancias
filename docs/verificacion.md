@@ -115,6 +115,12 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       posible lactosa); `ingredients` sigue siendo solo claves de taxonomía (lo único
       que programa check-ins). Campos aditivos: clientes sin ellos siguen funcionando.
       Cubierto por el arnés 2 (casos 9–12).
+- [ ] **El análisis no se pierde**: tras **Analizar con IA**, guarda la comida →
+      el timeline muestra el bloque 🤖 (proveedor + alimento + componentes + resumen)
+      junto a tu descripción (que no se toca). Recarga: sigue ahí (va en la entrada,
+      en localStorage). **✏️ Análisis** lo edita (alimento/componentes/resumen),
+      **Quitar IA** lo borra sin tocar tu texto. Cubierto por `node /tmp/test-analysis-persist.mjs`
+      (4 casos: persiste tras recarga, descripción intacta, retrocompat, export).
 - [ ] **Sin clave ni proxy**: en `file://` o `python -m http.server`, Analizar usa el
       **análisis local** y el error es `network` (“sin proxy”), nunca CORS.
 - [ ] **Automático (sin navegador)**: `node --check functions/api/analyze.js` OK +
