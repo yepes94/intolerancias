@@ -51,7 +51,10 @@ proveedor basta implementar `ping` + `analyzeFood` (+ `planDiet`) en `js/provide
 Pestaña **🥗 Dieta**: pide un día completo (desayuno, comida, merienda, cena) o una sola
 comida. Si tus registros asocian un componente (p. ej. gluten, lactosa) con hinchazón,
 pesadez, gases o cansancio, el plan lo excluye y prioriza comidas con energía y poca
-pesadez; si no hay señales claras, propone una dieta equilibrada y ligera. Los planes se
+pesadez; si no hay señales claras, propone una dieta equilibrada y ligera. Cada comida
+trae hora, ingredientes con cantidades, pasos de preparación, por qué ayuda, una
+alternativa y qué observar después; el plan incluye lista de la compra y se puede
+compartir o copiar. La respuesta de la IA no tiene tope propio de tokens. Los planes se
 guardan en `localStorage` (`intol.diets.v1`); «Comí esto» y «Registrar cómo me siento»
 los enlazan con check-ins para comparar con/sin plan. Sin clave hay plan local de ejemplo.
 Orientativo: no sustituye a un médico ni a un nutricionista; hazte pruebas de intolerancia.
@@ -64,7 +67,7 @@ styles.css          estilos mobile-first, tema claro/oscuro automático, sin dep
 js/data.js          ventanas de onset, síntomas, keywords, disclaimer
 js/store.js         localStorage + IndexedDB + compresión de fotos
 js/providers.js     abstracción BYOK vía proxy /api/analyze (Claude y Groq reales, resto stubs)
-js/diet.js          dieta de prueba: señales, plan local, conflictos, comparación (sin DOM)
+js/diet.js          dieta de prueba: señales, plan local, conflictos, comparación, lista de la compra (sin DOM)
 js/app.js           UI, recordatorios, timeline, dieta, resumen
 functions/api/analyze.js  proxy BYOK anti-CORS en Pages Functions (la key solo transita)
 functions/api/diet.js     proxy BYOK hermano para la dieta de prueba (misma taxonomía de errores)
