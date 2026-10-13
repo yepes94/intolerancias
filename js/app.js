@@ -51,11 +51,12 @@
   document.querySelectorAll(".tab").forEach((b) => {
     b.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach((x) => {
-        x.classList.remove("active"); x.setAttribute("aria-selected", "false");
+        x.classList.remove("active"); x.removeAttribute("aria-current");
       });
-      b.classList.add("active"); b.setAttribute("aria-selected", "true");
+      b.classList.add("active"); b.setAttribute("aria-current", "page");
       document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
       $("tab-" + b.dataset.tab).classList.add("active");
+      if (!document.body.classList.contains("scroll-locked")) window.scrollTo({ top: 0, behavior: "instant" });
       if (b.dataset.tab === "timeline") renderTimeline();
       if (b.dataset.tab === "resumen") renderSummary();
       if (b.dataset.tab === "dieta") renderDiet();

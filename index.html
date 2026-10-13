@@ -20,21 +20,21 @@
         <p class="tagline">Qué como → cómo me sienta</p>
       </div>
     </div>
-    <nav class="tabs" role="tablist" aria-label="Secciones">
-      <button class="tab active" data-tab="registrar" role="tab" aria-selected="true" aria-controls="tab-registrar">
-        <span class="tab-icon" aria-hidden="true">＋</span><span class="tab-label">Registrar</span>
+    <nav class="tabs" aria-label="Secciones">
+      <button type="button" class="tab active" data-tab="registrar" aria-current="page" aria-controls="tab-registrar">
+        <span class="tab-icon" aria-hidden="true">✍️</span><span class="tab-label">Registrar</span>
       </button>
-      <button class="tab" data-tab="timeline" role="tab" aria-selected="false" aria-controls="tab-timeline">
+      <button type="button" class="tab" data-tab="timeline" aria-controls="tab-timeline">
         <span class="tab-icon" aria-hidden="true">🕘</span><span class="tab-label">Timeline</span>
         <span class="badge hidden" id="pendingBadge"></span>
       </button>
-      <button class="tab" data-tab="dieta" role="tab" aria-selected="false" aria-controls="tab-dieta">
+      <button type="button" class="tab" data-tab="dieta" aria-controls="tab-dieta">
         <span class="tab-icon" aria-hidden="true">🥗</span><span class="tab-label">Dieta</span>
       </button>
-      <button class="tab" data-tab="resumen" role="tab" aria-selected="false" aria-controls="tab-resumen">
+      <button type="button" class="tab" data-tab="resumen" aria-controls="tab-resumen">
         <span class="tab-icon" aria-hidden="true">📊</span><span class="tab-label">Resumen</span>
       </button>
-      <button class="tab" data-tab="ajustes" role="tab" aria-selected="false" aria-controls="tab-ajustes">
+      <button type="button" class="tab" data-tab="ajustes" aria-controls="tab-ajustes">
         <span class="tab-icon" aria-hidden="true">⚙️</span><span class="tab-label">Ajustes</span>
       </button>
     </nav>
@@ -49,7 +49,7 @@
 
   <main>
     <!-- ============ REGISTRAR ============ -->
-    <section id="tab-registrar" class="panel active" role="tabpanel">
+    <section id="tab-registrar" class="panel active">
       <h2>¿Qué has comido?</h2>
 
       <div class="card">
@@ -102,13 +102,13 @@
     </section>
 
     <!-- ============ TIMELINE ============ -->
-    <section id="tab-timeline" class="panel" role="tabpanel">
+    <section id="tab-timeline" class="panel">
       <h2>Timeline comida → síntomas</h2>
       <div id="timeline" class="timeline"></div>
     </section>
 
     <!-- ============ DIETA DE PRUEBA ============ -->
-    <section id="tab-dieta" class="panel" role="tabpanel">
+    <section id="tab-dieta" class="panel">
       <h2>Dieta de prueba con IA</h2>
       <p class="diet-disclaimer" role="note"><strong>Orientativo.</strong> No sustituye a un médico ni a un
         nutricionista. Si sospechas una intolerancia, <strong>hazte pruebas de intolerancia</strong> con un
@@ -146,7 +146,7 @@
     </section>
 
     <!-- ============ RESUMEN ============ -->
-    <section id="tab-resumen" class="panel" role="tabpanel">
+    <section id="tab-resumen" class="panel">
       <h2>Resumen: qué te sienta bien / mal</h2>
       <p class="hint">Correlación simple y local: agrupa tus check-ins por ingrediente sospechoso.
         Orientativo, no diagnóstico.</p>
@@ -166,7 +166,7 @@
     </section>
 
     <!-- ============ AJUSTES ============ -->
-    <section id="tab-ajustes" class="panel" role="tabpanel">
+    <section id="tab-ajustes" class="panel">
       <h2>Ajustes · Claves BYOK</h2>
       <p class="hint">Tus claves se guardan <strong>solo en el localStorage de este navegador</strong>.
         Nunca se commitean. Al analizar, viajan solo en la petición al proxy
