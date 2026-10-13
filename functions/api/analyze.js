@@ -39,7 +39,7 @@ const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
 const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
 
-const DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_CLAUDE_MODEL = "claude-sonnet-5-5";
 const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
 const DEFAULT_GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
@@ -188,8 +188,54 @@ function parseAnalysisJson(text, providerLabel, validKeys, diag) {
 function diagClaude(data) {
   const blocks = Array.isArray(data.content) ? data.content.map((b) => (b && b.type) || "?").slice(0, 8) : [];
   const stop = data.stop_reason || "?";
-  const use = data.usage ? `${data.usage.input_tokens || 0}→${data.usage.output_tokens || 0}` : "?";
-  return `stop=${stop}, bloques=[${blocks.join(",") || "ninguno"}], uso=${use}`;
+  const u = data.usage || null;
+  const th = u && u.output_tokens_details && u.output_tokens_details.thinking_tokens;
+  const use = u ? `${u.input_tokens || 0}→${u.output_tokens || 0}${th ? ` (thinking ${th})` : ""}` : "?";
+  const ateBudget = stop === "max_tokens" && blocks.includes("thinking")
+    ? ", el razonamiento interno del modelo agotó el límite" : "";
+  return `stop=${stop}, bloques=[${blocks.join(",") || "ninguno"}], uso=${use}${ateBudget}`;
+}
+
+// Thinking según la doc de Anthropic (oct-2026): en la familia 5 el thinking
+// adaptativo viene activo sin pedirlo y cuenta contra max_tokens, así que un
+// tope pensado solo para el JSON se agota antes de escribir el texto.
+// Se apaga donde el modelo lo admite; donde no, se baja effort a "low".
+// Los 4.x tienen el thinking apagado por defecto y algunos rechazan effort.
+function claudeThinking(model) {
+  const m = String(model || "").toLowerCase();
+  if (/^claude-sonnet-5-5(-\d{8})?$/.test(m)) {
+    return { thinking: { type: "between_tools" }, output_config: { effort: "low" } };
+  }
+  if (/^claude-(sonnet-5|opus-5|haiku-5-5)(-\d{8})?$/.test(m)) {
+    return { thinking: { type: "disabled" }, output_config: { effort: "low" } };
+  }
+  if (/^claude-(opus-5-5|fable|mythos)/.test(m)) return { output_config: { effort: "low" } };
+  if (/^claude-(3|(opus|sonnet|haiku)-4)/.test(m)) return {};
+  return { output_config: { effort: "low" } };
+}
+
+// Un modelo que no conocemos puede rechazar thinking/effort con 400: se
+// reintenta una vez sin esos campos antes de dar el error.
+async function claudeFetch(key, body) {
+  const send = (b) => fetch(CLAUDE_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify(b),
+  });
+  const res = await send(body);
+  if (res.status !== 400 || !(body.thinking || body.output_config)) return { res };
+  const t = await res.clone().text().catch(() => "");
+  if (!/thinking|effort|output_config/i.test(t)) return { res };
+  const plain = { ...body };
+  delete plain.thinking;
+  delete plain.output_config;
+  return { res: await send(plain) };
+}
+
+function claudeText(data) {
+  return (Array.isArray(data.content) ? data.content : [])
+    .filter((b) => b && b.type === "text" && typeof b.text === "string")
+    .map((b) => b.text).join("");
 }
 
 function diagGroq(data) {
@@ -274,20 +320,15 @@ function upstreamError(providerLabel, status, bodyText, statusText) {
 async function claudeCall({ action, key, model, description, imageDataUrl, validKeys }) {
   const img = parseImageDataUrl(imageDataUrl);
   if (img.error) return fail("badrequest", img.error, 400);
+  const m = model || DEFAULT_CLAUDE_MODEL;
+  // max_tokens deja margen al thinking que no se pueda apagar; el JSON en sí
+  // cabe en ~400 tokens gracias a los topes del prompt.
   const body = action === "ping"
-    ? { model: model || DEFAULT_CLAUDE_MODEL, max_tokens: 20, messages: [{ role: "user", content: "Responde solo: ok" }] }
-    : { model: model || DEFAULT_CLAUDE_MODEL, max_tokens: 1000, messages: [{ role: "user", content: claudeContent(description, img) }] };
+    ? { model: m, max_tokens: 64, ...claudeThinking(m), messages: [{ role: "user", content: "Responde solo: ok" }] }
+    : { model: m, max_tokens: 2500, ...claudeThinking(m), messages: [{ role: "user", content: claudeContent(description, img) }] };
   let res;
   try {
-    res = await fetch(CLAUDE_URL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify(body),
-    });
+    ({ res } = await claudeFetch(key, body));
   } catch {
     return fail("network", "No se pudo contactar con Claude desde el proxy (red). Reintenta en unos minutos.", 502);
   }
@@ -298,7 +339,7 @@ async function claudeCall({ action, key, model, description, imageDataUrl, valid
   if (action === "ping") return json({ ok: true, provider: "claude", action: "ping", result: "ok" });
   const read = await readUpstreamJson(res, "Claude");
   if (read.error) return fail("badjson", read.error.message + " Pulsa de nuevo «Analizar con IA».", 502);
-  const text = (read.data.content || []).map((b) => b.text || "").join("");
+  const text = claudeText(read.data);
   const parsed = parseAnalysisJson(text, "Claude", validKeys, diagClaude(read.data));
   if (parsed.error) return fail("badjson", parsed.error.message + " Pulsa de nuevo «Analizar con IA».", 502);
   return json({ ok: true, provider: "claude", action: "analyze", result: parsed.result });

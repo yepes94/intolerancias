@@ -27,7 +27,7 @@
 const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
 const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-const DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_CLAUDE_MODEL = "claude-sonnet-5-5";
 const DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile";
 
 const FALLBACK_INGREDIENTS = [
@@ -37,10 +37,13 @@ const FALLBACK_INGREDIENTS = [
 
 const SLOTS = ["desayuno", "comida", "merienda", "cena"];
 
-// Topes del esquema: con ellos un día completo ronda ~550 tokens de salida,
-// holgado bajo MAX_TOKENS aunque el modelo se alargue algo.
+// Topes del esquema: con ellos un día completo ronda ~550 tokens de texto.
+// MAX_TOKENS es el total de salida (thinking + texto): deja margen al
+// thinking de los modelos que no permiten apagarlo (ver claudeThinking).
 const LIMITS = { name: 60, item: 40, items: 5, why: 140, rationale: 280, tip: 110, tips: 3, recent: 15 };
-const MAX_TOKENS = { day: 1200, meal: 700 };
+const MAX_TOKENS = { day: 4000, meal: 2500 };
+// Groq (Llama) no razona y reserva max_tokens en su cuota por minuto.
+const GROQ_MAX_TOKENS = { day: 1200, meal: 700 };
 
 function clip(s, n) {
   const t = String(s == null ? "" : s).replace(/\s+/g, " ").trim();
@@ -230,8 +233,55 @@ function parsePlanJson(text, providerLabel, scope, slot, avoid, validKeys, diag)
 
 function diagClaude(data) {
   const blocks = Array.isArray(data.content) ? data.content.map((b) => (b && b.type) || "?").slice(0, 8) : [];
-  const use = data.usage ? `${data.usage.input_tokens || 0}→${data.usage.output_tokens || 0}` : "?";
-  return `stop=${data.stop_reason || "?"}, bloques=[${blocks.join(",") || "ninguno"}], uso=${use}`;
+  const stop = data.stop_reason || "?";
+  const u = data.usage || null;
+  const th = u && u.output_tokens_details && u.output_tokens_details.thinking_tokens;
+  const use = u ? `${u.input_tokens || 0}→${u.output_tokens || 0}${th ? ` (thinking ${th})` : ""}` : "?";
+  const ateBudget = stop === "max_tokens" && blocks.includes("thinking")
+    ? ", el razonamiento interno del modelo agotó el límite" : "";
+  return `stop=${stop}, bloques=[${blocks.join(",") || "ninguno"}], uso=${use}${ateBudget}`;
+}
+
+// Thinking según la doc de Anthropic (oct-2026): en la familia 5 el thinking
+// adaptativo viene activo sin pedirlo y cuenta contra max_tokens, así que un
+// tope pensado solo para el JSON se agota antes de escribir el texto.
+// Se apaga donde el modelo lo admite; donde no, se baja effort a "low".
+// Los 4.x tienen el thinking apagado por defecto y algunos rechazan effort.
+function claudeThinking(model) {
+  const m = String(model || "").toLowerCase();
+  if (/^claude-sonnet-5-5(-\d{8})?$/.test(m)) {
+    return { thinking: { type: "between_tools" }, output_config: { effort: "low" } };
+  }
+  if (/^claude-(sonnet-5|opus-5|haiku-5-5)(-\d{8})?$/.test(m)) {
+    return { thinking: { type: "disabled" }, output_config: { effort: "low" } };
+  }
+  if (/^claude-(opus-5-5|fable|mythos)/.test(m)) return { output_config: { effort: "low" } };
+  if (/^claude-(3|(opus|sonnet|haiku)-4)/.test(m)) return {};
+  return { output_config: { effort: "low" } };
+}
+
+// Un modelo que no conocemos puede rechazar thinking/effort con 400: se
+// reintenta una vez sin esos campos antes de dar el error.
+async function claudeFetch(key, body) {
+  const send = (b) => fetch(CLAUDE_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify(b),
+  });
+  const res = await send(body);
+  if (res.status !== 400 || !(body.thinking || body.output_config)) return { res };
+  const t = await res.clone().text().catch(() => "");
+  if (!/thinking|effort|output_config/i.test(t)) return { res };
+  const plain = { ...body };
+  delete plain.thinking;
+  delete plain.output_config;
+  return { res: await send(plain) };
+}
+
+function claudeText(data) {
+  return (Array.isArray(data.content) ? data.content : [])
+    .filter((b) => b && b.type === "text" && typeof b.text === "string")
+    .map((b) => b.text).join("");
 }
 
 function diagGroq(data) {
@@ -290,17 +340,15 @@ function upstreamError(providerLabel, status, bodyText, statusText) {
 
 // ---- Proveedores ----
 async function claudeCall({ key, model, scope, slot, ctx, validKeys }) {
+  const m = model || DEFAULT_CLAUDE_MODEL;
   let res;
   try {
-    res = await fetch(CLAUDE_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: model || DEFAULT_CLAUDE_MODEL,
-        max_tokens: MAX_TOKENS[scope],
-        messages: [{ role: "user", content: dietPrompt(scope, slot, ctx) }],
-      }),
-    });
+    ({ res } = await claudeFetch(key, {
+      model: m,
+      max_tokens: MAX_TOKENS[scope],
+      ...claudeThinking(m),
+      messages: [{ role: "user", content: dietPrompt(scope, slot, ctx) }],
+    }));
   } catch {
     return fail("network", "No se pudo contactar con Claude desde el proxy (red). Reintenta en unos minutos.", 502);
   }
@@ -310,7 +358,7 @@ async function claudeCall({ key, model, scope, slot, ctx, validKeys }) {
   }
   const read = await readUpstreamJson(res, "Claude");
   if (read.error) return fail("badjson", read.error + RETRY, 502);
-  const text = (read.data.content || []).map((b) => b.text || "").join("");
+  const text = claudeText(read.data);
   const parsed = parsePlanJson(text, "Claude", scope, slot, ctx.avoid, validKeys, diagClaude(read.data));
   if (parsed.error) return fail("badjson", parsed.error + RETRY, 502);
   return json({ ok: true, provider: "claude", action: "plan", result: parsed.result });
@@ -324,7 +372,7 @@ async function groqCall({ key, groqModel, scope, slot, ctx, validKeys }) {
       headers: { "content-type": "application/json", authorization: "Bearer " + key },
       body: JSON.stringify({
         model: groqModel || DEFAULT_GROQ_MODEL,
-        max_tokens: MAX_TOKENS[scope],
+        max_tokens: GROQ_MAX_TOKENS[scope],
         temperature: 0.4,
         response_format: { type: "json_object" },
         messages: [
