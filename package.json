@@ -1,0 +1,15 @@
+{
+  "name": "intolerancias",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Diario personal de comidas y bienestar — MVP 100% frontend estático, desplegado en Cloudflare Pages.",
+  "scripts": {
+    "serve": "python3 -m http.server 8080",
+    "preview": "wrangler pages dev .",
+    "deploy": "wrangler pages deploy . --project-name=intolerancias --branch=main",
+    "deploy:preview": "wrangler pages deploy . --project-name=intolerancias"
+  },
+  "devDependencies": {
+    "wrangler": "^4.150.0"
+  }
+}
