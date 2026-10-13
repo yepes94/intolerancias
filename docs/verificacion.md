@@ -162,7 +162,8 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       Sonnet 5/Haiku 5.5/Opus 5 → `disabled`, Opus 5.5/Fable → solo `effort: "low"`,
       4.x sin tocar). La dieta no tiene tope propio de tokens: Claude recibe el máximo
       de salida del modelo (128000 en la familia 5 y Opus 4.6+, 64000 en el resto) y, si lo
-      rechaza, se reintenta con el máximo que indique el error; Groq va sin `max_tokens`
+      rechaza, se reintenta con el máximo que indique el error; si da 429 por tokens de
+      salida por minuto (cuentas de tier bajo), un reintento con 16000; Groq va sin `max_tokens`
       y solo si responde 413/429 por cuota TPM se reintenta con 8192. El análisis sigue
       en 2500. Con BYOK real en la
       preview: Ajustes → modelo `claude-sonnet-5-5` (u Opus 5.5) → **Pedir dieta** *Día completo*
