@@ -56,6 +56,30 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 - [ ] Sin claves, “Analizar con IA” usa el **análisis local** y lo indica explícitamente.
 - [ ] Proveedores Hermes/Cursor muestran “pendiente de implementar” sin romper nada.
 
+## 7. IA: errores accionables y JSON robusto (3 min, sin clave real)
+
+> El botón **🤖 Analizar con IA** ya no muestra el genérico
+> “La IA no devolvió un JSON reconocible. Revisa tu clave…”.
+> Ahora distingue la causa y propone una acción; el análisis local
+> siempre aparece como fallback en la misma caja.
+
+- [ ] **Clave inválida**: en Ajustes pega `sk-ant-falsa` → **Probar conexión** →
+      mensaje de *clave rechazada* con acción “borra la clave y pégala de nuevo completa”.
+- [ ] **Sin red / CORS**: sirve por `file://` o corta la red → **Analizar con IA** →
+      mensaje de *red o CORS bloqueado* (menciona `http://localhost`), no culpa a la clave.
+- [ ] **Respuesta rara del modelo**: si la IA responde prosa sin JSON o vacío →
+      mensaje de *formato inesperado* con acción “pulsa de nuevo Analizar con IA”
+      (reintentar), más el análisis local debajo.
+- [ ] **Fallback local**: en cada error la caja muestra además el
+      **análisis local por palabras clave** y deja sus ingredientes listos para guardar
+      (p. ej. “pizza con queso y cerveza” → `lactosa` + `gluten` + `alcohol`).
+- [ ] **Automático (sin navegador)**: `node /tmp/repro-ia.js` (8 casos de formato:
+      JSON limpio, fences markdown, prosa alrededor, comillas simples, comas finales,
+      prosa sin JSON, vacío, doble objeto) y `node /tmp/repro-errores.js`
+      (17 aserciones: 401/429/500, TypeError de red, formato de clave Groq,
+      prioridad Claude > Hermes > Groq > Cursor, fallback local, sin exfiltración)
+      cargando los `js/` reales del repo.
+
 ## Criterio de aceptación
 
 Todo lo anterior en verde + `docs/verificacion.md` existe + sin claves en el repo

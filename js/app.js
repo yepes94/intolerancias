@@ -194,9 +194,13 @@
       // Fusiona ingredientes detectados por IA en la próxima comida guardada
       box.dataset.ingredients = JSON.stringify(out.ingredients || []);
     } catch (err) {
-      box.innerHTML = "⚠️ " + esc(err.message) +
-        "<br><span class='hint'>Revisa tu clave en Ajustes. Si el navegador bloquea la llamada (CORS/red), " +
-        "el análisis local sigue funcionando.</span>";
+      const info = P.describeError(err, prov.label);
+      const local = P.localAnalyze(desc);
+      box.innerHTML = "⚠️ " + esc(info.title) +
+        "<br><span class='hint'>" + esc(info.hint) + "</span>" +
+        "<br><br><strong>Análisis local (sin IA, sigue funcionando):</strong> " + esc(local.summary);
+      // El fallback local también deja sus ingredientes listos para guardar.
+      box.dataset.ingredients = JSON.stringify(local.ingredients || []);
     }
   });
 
@@ -513,7 +517,10 @@
     try {
       await prov.ping(settings.keys[prov.id], settings.model);
       $("providerMsg").textContent = "✔ " + prov.label + " responde correctamente.";
-    } catch (err) { $("providerMsg").textContent = "⚠️ " + err.message; }
+    } catch (err) {
+      const info = P.describeError(err, prov.label);
+      $("providerMsg").textContent = "⚠️ " + info.title + " " + info.hint;
+    }
   });
 
   // ---------- init ----------
