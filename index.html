@@ -28,6 +28,9 @@
         <span class="tab-icon" aria-hidden="true">🕘</span><span class="tab-label">Timeline</span>
         <span class="badge hidden" id="pendingBadge"></span>
       </button>
+      <button class="tab" data-tab="dieta" role="tab" aria-selected="false" aria-controls="tab-dieta">
+        <span class="tab-icon" aria-hidden="true">🥗</span><span class="tab-label">Dieta</span>
+      </button>
       <button class="tab" data-tab="resumen" role="tab" aria-selected="false" aria-controls="tab-resumen">
         <span class="tab-icon" aria-hidden="true">📊</span><span class="tab-label">Resumen</span>
       </button>
@@ -102,6 +105,44 @@
     <section id="tab-timeline" class="panel" role="tabpanel">
       <h2>Timeline comida → síntomas</h2>
       <div id="timeline" class="timeline"></div>
+    </section>
+
+    <!-- ============ DIETA DE PRUEBA ============ -->
+    <section id="tab-dieta" class="panel" role="tabpanel">
+      <h2>Dieta de prueba con IA</h2>
+      <p class="diet-disclaimer" role="note"><strong>Orientativo.</strong> No sustituye a un médico ni a un
+        nutricionista. Si sospechas una intolerancia, <strong>hazte pruebas de intolerancia</strong> con un
+        profesional sanitario.</p>
+
+      <div class="card">
+        <fieldset class="field diet-scope">
+          <legend>¿Qué quieres probar?</legend>
+          <div class="segmented">
+            <label><input type="radio" name="dietScope" value="day" checked /> <span>Día completo</span></label>
+            <label><input type="radio" name="dietScope" value="meal" /> <span>Una comida</span></label>
+          </div>
+        </fieldset>
+        <label class="field hidden" id="dietSlotField"><span>Comida</span>
+          <select id="dietSlot">
+            <option value="desayuno">Desayuno</option>
+            <option value="comida" selected>Comida</option>
+            <option value="merienda">Merienda</option>
+            <option value="cena">Cena</option>
+          </select>
+        </label>
+        <div id="dietSignals" class="diet-signals" aria-live="polite"></div>
+        <div class="row">
+          <button id="dietAskBtn" class="btn primary">🥗 Pedir dieta</button>
+          <button id="dietLocalBtn" class="btn ghost">Plan local sin IA</button>
+        </div>
+        <p class="hint">La IA recibe solo un resumen de tus registros (descripciones, componentes, nivel y
+          síntomas; sin fotos) a través del proxy <code>/api/diet</code> con tu clave BYOK, que no se guarda
+          en el servidor ni en logs.</p>
+        <div id="dietStatus" class="analysis hidden" aria-live="polite"></div>
+      </div>
+
+      <h3 class="diet-list-title">Tus planes</h3>
+      <div id="dietList" class="diet-list"></div>
     </section>
 
     <!-- ============ RESUMEN ============ -->
@@ -203,6 +244,7 @@
   <script src="js/data.js"></script>
   <script src="js/store.js"></script>
   <script src="js/providers.js"></script>
+  <script src="js/diet.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
