@@ -757,12 +757,25 @@
       "</div>";
   }
 
+  async function sharePlan(d) {
+    const text = Diet.planText(d);
+    try {
+      if (navigator.share) { await navigator.share({ title: "Dieta de prueba", text }); return; }
+      await navigator.clipboard.writeText(text);
+      toast("Plan copiado al portapapeles");
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+      toast("No se pudo copiar el plan");
+    }
+  }
+
   function dietCard(d, open) {
     const det = document.createElement("details");
     det.className = "diet-plan";
     det.open = !!open;
     const conf = Diet.conflicts(d, d.avoid);
     const done = Object.keys(d.eaten || {}).length;
+    const shop = Diet.shoppingList(d);
     det.innerHTML =
       "<summary><span class='diet-plan-title'><strong>🥗 " + esc(dietTitle(d)) + "</strong>" +
       "<time datetime='" + new Date(d.createdAt).toISOString() + "'>" + fmtDT(d.createdAt) + "</time></span>" +
@@ -771,23 +784,45 @@
       "<span class='hint'>" + esc(d.label) + (done ? " · " + done + "/" + d.meals.length + " hechas" : "") + "</span></summary>" +
       "<div class='diet-plan-body'>" +
       "<p class='diet-disclaimer'>" + esc(Diet.DISCLAIMER) + "</p>" +
-      (d.rationale ? "<p>" + esc(d.rationale) + "</p>" : "") +
+      (d.rationale ? "<p class='diet-rationale'>" + esc(d.rationale) + "</p>" : "") +
+      (d.meals.length > 1 ? "<div class='diet-glance'><p class='diet-slot'>Tu día de un vistazo</p><ol>" + d.meals.map((pm) =>
+        "<li><button type='button' class='diet-glance-item' data-goto='" + esc(pm.slot) + "'>" +
+        "<span class='diet-time'>" + esc(pm.time || "–") + "</span>" +
+        "<span><span class='diet-glance-slot'>" + esc(Diet.SLOT_LABELS[pm.slot] || pm.slot) + "</span>" + esc(pm.name) + "</span>" +
+        (d.eaten && d.eaten[pm.slot] ? "<span class='diet-glance-done' aria-label='registrada'>✔</span>" : "") +
+        "</button></li>").join("") + "</ol></div>" : "") +
       "<ol class='diet-meals'>" + d.meals.map((pm) =>
-        "<li data-slot='" + esc(pm.slot) + "'><p class='diet-slot'>" + esc(Diet.SLOT_LABELS[pm.slot] || pm.slot) + "</p>" +
+        "<li data-slot='" + esc(pm.slot) + "'><p class='diet-slot'>" + esc(Diet.SLOT_LABELS[pm.slot] || pm.slot) +
+        (pm.time ? " <span class='diet-time'>" + esc(pm.time) + "</span>" : "") + "</p>" +
         "<p class='diet-dish'><strong>" + esc(pm.name) + "</strong></p>" +
-        (pm.items && pm.items.length ? "<ul class='diet-items'>" + pm.items.map((x) => "<li>" + esc(x) + "</li>").join("") + "</ul>" : "") +
-        (pm.why ? "<p class='hint'>" + esc(pm.why) + "</p>" : "") +
+        (pm.items && pm.items.length ? "<p class='diet-label'>Ingredientes</p><ul class='diet-items'>" + pm.items.map((x) => "<li>" + esc(x) + "</li>").join("") + "</ul>" : "") +
+        (pm.steps && pm.steps.length ? "<details class='diet-steps'><summary>Cómo prepararlo (" + pm.steps.length + " pasos)</summary><ol>" +
+          pm.steps.map((s) => "<li>" + esc(s) + "</li>").join("") + "</ol></details>" : "") +
+        (pm.why || pm.swap || pm.watch ? "<dl class='diet-notes'>" +
+          (pm.why ? "<div><dt>💡 Por qué</dt><dd>" + esc(pm.why) + "</dd></div>" : "") +
+          (pm.swap ? "<div><dt>🔁 Alternativa</dt><dd>" + esc(pm.swap) + "</dd></div>" : "") +
+          (pm.watch ? "<div class='is-watch'><dt>👀 Qué observar después</dt><dd>" + esc(pm.watch) + "</dd></div>" : "") +
+          "</dl>" : "") +
         (conf[pm.slot] ? "<p class='diet-warn'>⚠️ Revisa: puede contener " + esc(conf[pm.slot].map(ingLabel).join(", ").toLowerCase()) +
           ", que querías evitar. Cámbialo por una alternativa sin ese componente.</p>" : "") +
         "<div class='row'>" + (d.eaten && d.eaten[pm.slot]
           ? "<span class='hint'>✔ Registrado " + esc(fmtDT(d.eaten[pm.slot])) + "</span>"
           : "<button class='btn small' data-eat='" + esc(pm.slot) + "'>Comí esto</button>") + "</div></li>"
       ).join("") + "</ol>" +
-      (d.tips && d.tips.length ? "<ul class='diet-tips'>" + d.tips.map((t) => "<li>" + esc(t) + "</li>").join("") + "</ul>" : "") +
+      (d.tips && d.tips.length ? "<div class='diet-tips'><p class='diet-label'>Consejos</p><ul>" + d.tips.map((t) => "<li>" + esc(t) + "</li>").join("") + "</ul></div>" : "") +
+      (shop.length ? "<details class='diet-shop'><summary>🛒 Lista de la compra (" + shop.length + ")</summary><ul>" +
+        shop.map((x) => "<li><span>" + esc(x.name) + "</span>" + (x.qty.length ? "<span class='hint'>" + esc(x.qty.join(" + ")) + "</span>" : "") + "</li>").join("") +
+        "</ul></details>" : "") +
       compareHtml(d) +
       "<div class='row'><button class='btn small primary' data-act='feel'>Registrar cómo me siento</button>" +
+      "<button class='btn small' data-act='share'>Compartir plan</button>" +
       "<button class='btn small ghost' data-act='del'>Borrar plan</button></div>" +
       "</div>";
+    det.querySelectorAll("[data-goto]").forEach((b) => b.addEventListener("click", () => {
+      const li = det.querySelector(".diet-meals > li[data-slot='" + b.dataset.goto + "']");
+      if (li) li.scrollIntoView({ behavior: "smooth", block: "start" });
+    }));
+    det.querySelector("[data-act='share']").addEventListener("click", () => sharePlan(d));
     det.querySelectorAll("[data-eat]").forEach((b) => {
       const pm = d.meals.find((x) => x.slot === b.dataset.eat);
       b.addEventListener("click", () => eatPlanMeal(d, pm));

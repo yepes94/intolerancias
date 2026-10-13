@@ -128,20 +128,36 @@
   // La última opción de cada franja no lleva ninguna, así siempre hay plan.
   const LIBRARY = {
     desayuno: [
-      { name: "Tostadas integrales con tomate y pavo", items: ["2 tostadas de pan integral", "tomate rallado", "aceite de oliva", "pavo en lonchas", "1 plátano"], tags: ["gluten"], why: "Hidratos de absorción lenta y proteína: energía estable sin pesadez." },
-      { name: "Copos de arroz con bebida de arroz y plátano", items: ["copos de arroz", "bebida de arroz", "1 plátano", "canela"], tags: [], why: "Ligero y sin lácteos ni gluten: fácil de digerir por la mañana." }
+      { time: "08:00", name: "Tostadas integrales con tomate y pavo", items: ["2 tostadas de pan integral", "1 tomate rallado", "1 cucharada de aceite de oliva", "50 g de pavo en lonchas", "1 plátano"], tags: ["gluten"],
+        steps: ["Tuesta el pan y úntalo con el tomate rallado.", "Añade un hilo de aceite y el pavo por encima.", "Toma el plátano de postre o a media mañana."],
+        why: "Hidratos de absorción lenta y proteína: energía estable sin pesadez.", swap: "Pan de centeno o de espelta en lugar de integral.", watch: "Energía hasta media mañana y si aparece hinchazón tras el pan." },
+      { time: "08:00", name: "Copos de arroz con bebida de arroz y plátano", items: ["40 g de copos de arroz", "200 ml de bebida de arroz", "1 plátano", "1 pizca de canela"], tags: [],
+        steps: ["Templa la bebida de arroz (opcional).", "Añade los copos y deja reposar 2 minutos.", "Corta el plátano por encima y espolvorea canela."],
+        why: "Ligero y sin lácteos ni gluten: fácil de digerir por la mañana.", swap: "Copos de mijo o trigo sarraceno inflado.", watch: "Si te aguanta la saciedad hasta media mañana sin pesadez." }
     ],
     comida: [
-      { name: "Merluza al horno con patata y judías verdes", items: ["merluza", "patata asada", "judías verdes", "aceite de oliva", "limón"], tags: [], why: "Pescado blanco y verdura cocida: saciante y de digestión suave." }
+      { time: "14:00", name: "Merluza al horno con patata y judías verdes", items: ["150 g de merluza", "1 patata mediana", "150 g de judías verdes", "1 cucharada de aceite de oliva", "1/2 limón"], tags: [],
+        steps: ["Hornea la patata en rodajas 20 minutos a 200 °C.", "Pon la merluza encima con aceite y limón y hornea 10–12 minutos más.", "Cuece las judías al vapor 8 minutos y sirve todo junto."],
+        why: "Pescado blanco y verdura cocida: saciante y de digestión suave.", swap: "Bacalao fresco o pechuga de pollo a la plancha.", watch: "Pesadez o sueño en las 2 horas siguientes." }
     ],
     merienda: [
-      { name: "Yogur natural con fresas", items: ["1 yogur natural", "fresas"], tags: ["lactosa"], why: "Tentempié ligero que aguanta hasta la cena." },
-      { name: "Plátano con un puñado de nueces", items: ["1 plátano", "un puñado de nueces"], tags: ["frutosSecos"], why: "Energía rápida y grasa buena, sin pesadez." },
-      { name: "Tortitas de arroz con pavo", items: ["2 tortitas de arroz", "pavo en lonchas", "rodajas de pepino"], tags: [], why: "Muy ligera y sin alérgenos frecuentes." }
+      { time: "17:30", name: "Yogur natural con fresas", items: ["1 yogur natural", "100 g de fresas"], tags: ["lactosa"],
+        steps: ["Lava y corta las fresas.", "Mézclalas con el yogur."],
+        why: "Tentempié ligero que aguanta hasta la cena.", swap: "Kéfir o yogur sin lactosa.", watch: "Gases o hinchazón en la hora siguiente." },
+      { time: "17:30", name: "Plátano con un puñado de nueces", items: ["1 plátano", "20 g de nueces"], tags: ["frutosSecos"],
+        steps: ["Pela el plátano.", "Acompáñalo con las nueces."],
+        why: "Energía rápida y grasa buena, sin pesadez.", swap: "Pipas de calabaza en lugar de nueces.", watch: "Picor de boca u hormigueo tras los frutos secos." },
+      { time: "17:30", name: "Tortitas de arroz con pavo", items: ["2 tortitas de arroz", "40 g de pavo en lonchas", "1/2 pepino"], tags: [],
+        steps: ["Corta el pepino en rodajas finas.", "Monta el pavo y el pepino sobre las tortitas."],
+        why: "Muy ligera y sin alérgenos frecuentes.", swap: "Tortitas de maíz y pechuga de pollo cocida.", watch: "Si llegas a la cena con hambre normal, sin ansiedad." }
     ],
     cena: [
-      { name: "Tortilla francesa con ensalada", items: ["tortilla francesa de 2 huevos", "lechuga y tomate", "aceite de oliva", "1 rebanada de pan"], tags: ["huevo", "gluten"], why: "Cena rápida y ligera para dormir sin pesadez." },
-      { name: "Pavo a la plancha con verduras al vapor y arroz", items: ["pechuga de pavo", "calabacín y zanahoria al vapor", "arroz blanco", "aceite de oliva"], tags: [], why: "Proteína magra y verdura cocida: digestión fácil por la noche." }
+      { time: "21:00", name: "Tortilla francesa con ensalada", items: ["2 huevos", "lechuga y tomate", "1 cucharada de aceite de oliva", "1 rebanada de pan"], tags: ["huevo", "gluten"],
+        steps: ["Bate los huevos con una pizca de sal.", "Cuaja la tortilla en sartén con unas gotas de aceite.", "Aliña la ensalada con el resto del aceite."],
+        why: "Cena rápida y ligera para dormir sin pesadez.", swap: "Revuelto de calabacín en lugar de tortilla.", watch: "Calidad del sueño y cómo te levantas." },
+      { time: "21:00", name: "Pavo a la plancha con verduras al vapor y arroz", items: ["120 g de pechuga de pavo", "1 calabacín y 1 zanahoria", "60 g de arroz blanco (en crudo)", "1 cucharada de aceite de oliva"], tags: [],
+        steps: ["Cuece el arroz 18 minutos.", "Cocina las verduras al vapor 10 minutos.", "Haz el pavo a la plancha 3–4 minutos por lado y aliña con el aceite."],
+        why: "Proteína magra y verdura cocida: digestión fácil por la noche.", swap: "Merluza o pollo en lugar de pavo.", watch: "Calidad del sueño y si te levantas sin pesadez." }
     ]
   };
 
@@ -151,7 +167,7 @@
     const slots = scope === "day" ? SLOTS : [SLOTS.includes(slot) ? slot : "comida"];
     const meals = slots.map((s) => {
       const opt = LIBRARY[s].find((o) => !o.tags.some((t) => ex.includes(t))) || LIBRARY[s][LIBRARY[s].length - 1];
-      return { slot: s, name: opt.name, items: opt.items.slice(), why: opt.why };
+      return { slot: s, time: opt.time, name: opt.name, items: opt.items.slice(), steps: opt.steps.slice(), why: opt.why, swap: opt.swap, watch: opt.watch };
     });
     const labels = ex.map((id) => (D().ONSET_WINDOWS[id] ? D().ONSET_WINDOWS[id].label.toLowerCase() : id));
     return {
@@ -208,8 +224,47 @@
     };
   }
 
+  const QTY = /^((?:\d+(?:[.,/]\d+)?\s*(?:–\s*\d+\s*)?(?:g|kg|ml|cl|l|cucharadas?|cucharaditas?|rebanadas?|lonchas?|tazas?|vasos?|piezas?|unidades?|pizcas?|puñados?)?\s*(?:de\s+)?)|(?:un|una|unos|unas)\s+(?:puñado|chorrito|pizca|taza|vaso|rebanada|loncha)s?\s+de\s+)/i;
+
+  /** Ingredientes del plan agrupados por nombre: [{ name, qty: ["150 g", …] }]. */
+  function shoppingList(plan) {
+    const out = [];
+    const byName = {};
+    for (const m of (plan && plan.meals) || []) {
+      for (const raw of m.items || []) {
+        const it = String(raw).trim();
+        if (!it) continue;
+        const q = QTY.exec(it);
+        const qty = q ? q[0].replace(/\s*de\s*$/i, "").trim() : "";
+        const name = (q ? it.slice(q[0].length) : it).trim() || it;
+        const k = name.toLowerCase();
+        if (!byName[k]) { byName[k] = { name, qty: [] }; out.push(byName[k]); }
+        if (qty) byName[k].qty.push(qty);
+      }
+    }
+    return out;
+  }
+
+  /** Texto plano del plan para copiar o compartir (incluye el aviso). */
+  function planText(plan) {
+    const lines = ["Dieta de prueba · Intolerancias", ""];
+    if (plan.rationale) lines.push(plan.rationale, "");
+    for (const m of plan.meals || []) {
+      lines.push((SLOT_LABELS[m.slot] || m.slot).toUpperCase() + (m.time ? " · " + m.time : "") + " — " + m.name);
+      for (const it of m.items || []) lines.push("  • " + it);
+      (m.steps || []).forEach((s, i) => lines.push("  " + (i + 1) + ". " + s));
+      if (m.why) lines.push("  Por qué: " + m.why);
+      if (m.swap) lines.push("  Alternativa: " + m.swap);
+      if (m.watch) lines.push("  Qué observar: " + m.watch);
+      lines.push("");
+    }
+    if ((plan.tips || []).length) { lines.push("Consejos:"); for (const t of plan.tips) lines.push("  • " + t); lines.push(""); }
+    lines.push(DISCLAIMER);
+    return lines.join("\n");
+  }
+
   window.IntolDiet = {
     SLOTS, SLOT_LABELS, TARGET_SYMPTOMS, DISCLAIMER,
-    keysInText, buildSignals, contextPayload, localPlan, conflicts, compare
+    keysInText, buildSignals, contextPayload, localPlan, conflicts, compare, shoppingList, planText
   };
 })();
