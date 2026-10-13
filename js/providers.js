@@ -35,13 +35,13 @@
   function heuristicSummary(ingredients) {
     if (!ingredients.length) {
       return "No detecto ingredientes típicos a vigilar en tu descripción. " +
-        "Si subiste foto, el análisis con IA (Claude con visión) puede ver más. " + D().DISCLAIMER;
+        "Si subiste foto, el análisis con IA (Claude con visión) puede ver más.";
     }
     const bits = ingredients.map((id) => {
       const w = D().ONSET_WINDOWS[id];
       return w ? `${w.label} (suele notarse entre ${fmtH(w.startH)} y ${fmtH(w.endH)} tras comer)` : id;
     });
-    return "Posibles ingredientes a vigilar: " + bits.join(" · ") + ". " + D().DISCLAIMER;
+    return "Posibles ingredientes a vigilar: " + bits.join(" · ") + ".";
   }
 
   function fmtH(h) {
@@ -61,18 +61,17 @@
 
   function foodPrompt(description, hasImage) {
     const keys = Object.keys(D().ONSET_WINDOWS).join(", ");
-    return "Eres un asistente de diario alimentario personal. NO eres medico y NO diagnosticas. " +
+    return "Eres un asistente de diario alimentario personal. " +
       "Analiza esta comida y responde UNICAMENTE con un objeto JSON, sin nada mas: " +
       "ni saludos, ni explicaciones antes o despues, ni bloques markdown (nada de ```), solo el objeto. " +
-      "Se conciso: la respuesta completa debe ser corta (menos de ~250 palabras en total). " +
+      "Se conciso y directo: la respuesta completa debe ser corta (menos de ~250 palabras en total). " +
       'Forma exacta: {"food": "<alimento detectado en 2-5 palabras>", ' +
       '"components": ["<solo los componentes relevantes de intolerancia/alergia, máx. 6>"], ' +
       '"ingredients": [<solo las claves relevantes de: ' + keys + "> que correspondan a esos componentes], " +
       '"summary": "<1 frase corta, máx. 280 caracteres, tono cercano, que vigilar y por que>", ' +
       '"checkinQuestion": "<pregunta corta tipo como te sientes>"}. ' +
       "Usa comillas dobles y sin comas finales, para que sea JSON.parse valido. " +
-      "Comida: " + (description || "(solo foto)") + (hasImage ? " [incluye foto]" : "") +
-      "\nRecuerda: anade que es orientativo y no sustituye una prueba medica real.";
+      "Comida: " + (description || "(solo foto)") + (hasImage ? " [incluye foto]" : "");
   }
 
   // ---- Errores con causa distinguible (clave vs red/CORS vs JSON) ----
@@ -393,7 +392,6 @@
               "Claude respondió pero no en el formato esperado. Pulsa de nuevo " +
               "«Analizar con IA»; el análisis local sigue funcionando.");
           }
-          result.summary = (result.summary || "") + " " + D().DISCLAIMER;
           return result;
         },
 
@@ -444,7 +442,6 @@
               "Groq respondió pero no en el formato esperado. Pulsa de nuevo " +
               "«Analizar con IA»; el análisis local sigue funcionando.");
           }
-          result.summary = (result.summary || "") + " " + D().DISCLAIMER;
           return result;
         },
 

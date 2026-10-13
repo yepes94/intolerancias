@@ -55,7 +55,7 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 - [ ] Pestaña **⚙️ Ajustes**: pega tu `sk-ant-…` (Claude) o tu `gsk-…` gratis de
   <https://console.groq.com/keys> → **Guardar claves** → **Probar conexión** → ✔ responde.
 - [ ] En Registrar, con foto y/o descripción, pulsa **🤖 Analizar con IA**:
-      verás resumen + pregunta de seguimiento con disclaimer no-médico.
+      verás resumen + pregunta de seguimiento, sin aviso médico repetido.
 - [ ] Guarda la comida: los ingredientes detectados por IA llevan pastilla azul (`src-ia`).
 - [ ] DevTools → Sources/Vistas: la clave **solo** está en localStorage (`intol.settings.v1`);
       `git grep -i "sk-ant"` en el repo no devuelve nada.
@@ -157,14 +157,15 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       cantidades, «Cómo prepararlo» (desplegable con pasos), 💡 Por qué, 🔁 Alternativa y
       👀 Qué observar después. Debajo: Consejos, 🛒 Lista de la compra (ingredientes
       agrupados y cantidades sumadas) y «Compartir plan» (hoja de compartir del móvil o
-      copia al portapapeles, con el aviso al final). Un plan guardado antes de este cambio
+      copia al portapapeles). Un plan guardado antes de este cambio
       se sigue viendo, sin los bloques que no tiene.
 - [ ] **Seguir y comparar**: «Comí esto» crea la comida (🥗 en el timeline);
       «Registrar cómo me siento» abre el diario “Siguiendo: …”. El plan
       muestra *Con el plan* vs *Sin plan* (nivel medio, % con pesadez/hinchazón/cansancio, síntomas).
 - [ ] **Persistencia**: recarga → los planes siguen en “Tus planes” (`intol.diets.v1`);
       entran en *Exportar datos* y *Borrar todo* los elimina.
-- [ ] **Disclaimer** visible en la pestaña y en cada plan (médico, nutricionista, pruebas de intolerancia).
+- [ ] **Sin disclaimer médico** en la pestaña Dieta ni en cada plan (ni «orientativo / no médico»,
+      ni «no sustituye», ni «hazte pruebas»).
 - [ ] **Móvil 375px**: sin scroll horizontal en la pestaña Dieta ni en las tarjetas del plan.
 - [ ] **Thinking de Claude (familia 5)**: `node tests/claude-thinking.test.mjs` → todo OK
       (respuesta `thinking`+`text` → solo se lee `text`; Sonnet 5.5 → `between_tools`,

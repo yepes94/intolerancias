@@ -1,12 +1,11 @@
 /* Intolerancias · js/data.js
- * Constantes de dominio: ventanas típicas de aparición por ingrediente
- * (SOLO ORIENTATIVAS, no diagnósticas), síntomas y keywords del análisis local. */
+ * Constantes de dominio: ventanas típicas de aparición por ingrediente,
+ * síntomas y keywords del análisis local. */
 (function () {
   "use strict";
 
   // Ventana típica de aparición de síntomas tras la ingesta.
-  // Valores orientativos divulgativos; cada persona varía.
-  // startH/endH en horas.
+  // Cada persona varía. startH/endH en horas.
   const ONSET_WINDOWS = {
     lactosa:      { label: "Lactosa",       startH: 0.5, endH: 2,  hint: "lácteos: leche, queso, yogur, mantequilla" },
     gluten:       { label: "Gluten",        startH: 1,   endH: 48, hint: "trigo, cebada, centeno: pan, pasta, cerveza" },
@@ -39,8 +38,6 @@
     [/embutido|chorizo|jamon|queso curado|conserva|atun en lata/, "histamina"]
   ];
 
-  const DISCLAIMER = "Orientativo, no médico: no diagnostica intolerancias ni sustituye una prueba médica real con un profesional sanitario.";
-
   const DEFAULT_MODEL = "claude-sonnet-5-5";
 
   // Groq (API compatible con OpenAI): texto rápido y barato.
@@ -48,5 +45,5 @@
   // Visión en Groq: se usa solo cuando la comida incluye foto.
   const GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
-  window.IntolData = { ONSET_WINDOWS, SYMPTOMS, KEYWORDS, DISCLAIMER, DEFAULT_MODEL, GROQ_MODEL, GROQ_VISION_MODEL };
+  window.IntolData = { ONSET_WINDOWS, SYMPTOMS, KEYWORDS, DEFAULT_MODEL, GROQ_MODEL, GROQ_VISION_MODEL };
 })();

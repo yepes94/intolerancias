@@ -39,13 +39,6 @@
     </nav>
   </header>
 
-  <aside class="disclaimer" role="note">
-    <span class="disclaimer-icon" aria-hidden="true">⚠️</span>
-    <p><strong>App orientativa, no médica.</strong> Las ventanas de aparición por ingrediente son
-      orientativas y no diagnostican nada. Ante síntomas persistentes, pide una
-      <strong>prueba médica real</strong> (p. ej. test de intolerancias con un profesional sanitario).</p>
-  </aside>
-
   <div id="reminderBanner" class="reminder hidden" role="status" aria-live="polite">
     <p id="reminderText"></p>
     <div class="row">
@@ -99,7 +92,7 @@
       <div class="card">
         <h3>📝 Diario de síntomas <small>escribe cuando te sientas mal</small></h3>
         <p class="hint">Cuéntalo con tus palabras cuando quieras. Al guardarlo, la app cruza lo que cuentas
-          con lo que comiste en las 24 h anteriores y te dice qué puede estar detrás (orientativo).</p>
+          con lo que comiste en las 24 h anteriores y te dice qué puede estar detrás.</p>
         <ul id="diaryRecent" class="diary-recent"></ul>
         <div class="row">
           <button id="diaryOpenBtn" class="btn small primary">📝 Escribir en el diario</button>
@@ -116,9 +109,6 @@
     <!-- ============ DIETA DE PRUEBA ============ -->
     <section id="tab-dieta" class="panel">
       <h2>Dieta de prueba con IA</h2>
-      <p class="diet-disclaimer" role="note"><strong>Orientativo.</strong> No sustituye a un médico ni a un
-        nutricionista. Si sospechas una intolerancia, <strong>hazte pruebas de intolerancia</strong> con un
-        profesional sanitario.</p>
 
       <div class="card">
         <fieldset class="field diet-scope">
@@ -155,8 +145,7 @@
     <section id="tab-resumen" class="panel">
       <h2>Resumen: qué te sienta bien / mal</h2>
       <p class="hint">Correlación simple y local: cruza tu diario con las comidas de las 24 h anteriores
-        (o con la comida señalada como posible causa) y agrupa por ingrediente sospechoso.
-        Orientativo, no diagnóstico.</p>
+        (o con la comida señalada como posible causa) y agrupa por ingrediente sospechoso.</p>
       <div id="suggestions" class="suggestions"></div>
       <div class="cols">
         <div class="card verdict verdict-good"><h3>✅ Sienta bien</h3><ul id="goodList" class="plain"></ul></div>

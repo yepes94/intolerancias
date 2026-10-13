@@ -6,8 +6,7 @@
  *   - conflicts(plan, avoid): platos que mencionan un componente excluido.
  *   - compare(plan, meals, feelings): bienestar con el plan vs. el resto.
  *   `feelings` = registros { mealId, doneAt, feeling, symptoms, dietId?, entryId? }
- *   que genera IntolDiary.feelings a partir del diario.
- * Orientativo, no médico: no diagnostica ni sustituye a un profesional. */
+ *   que genera IntolDiary.feelings a partir del diario. */
 (function () {
   "use strict";
 
@@ -18,9 +17,6 @@
 
   // Síntomas que cuentan como "pesadez/malestar" para buscar señales.
   const TARGET_SYMPTOMS = ["hinchazón", "pesadez", "gases", "cansancio", "dolor abdominal", "náusea", "acidez", "diarrea"];
-
-  const DISCLAIMER = "Dieta orientativa, no médica: no sustituye a un médico ni a un nutricionista. " +
-    "Si sospechas una intolerancia, hazte pruebas de intolerancia con un profesional sanitario.";
 
   const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -277,7 +273,7 @@
     return [String(Math.round(total * 100) / 100).replace(".", ",") + (u ? " " + plural : "")];
   }
 
-  /** Texto plano del plan para copiar o compartir (incluye el aviso). */
+  /** Texto plano del plan para copiar o compartir. */
   function planText(plan) {
     const lines = ["Dieta de prueba · Intolerancias", ""];
     if (plan.rationale) lines.push(plan.rationale, "");
@@ -291,12 +287,11 @@
       lines.push("");
     }
     if ((plan.tips || []).length) { lines.push("Consejos:"); for (const t of plan.tips) lines.push("  • " + t); lines.push(""); }
-    lines.push(DISCLAIMER);
-    return lines.join("\n");
+    return lines.join("\n").replace(/\n+$/, "\n");
   }
 
   window.IntolDiet = {
-    SLOTS, SLOT_LABELS, TARGET_SYMPTOMS, DISCLAIMER,
+    SLOTS, SLOT_LABELS, TARGET_SYMPTOMS,
     keysInText, buildSignals, contextPayload, localPlan, conflicts, compare, shoppingList, planText
   };
 })();

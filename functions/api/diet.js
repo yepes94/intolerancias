@@ -111,17 +111,17 @@ function dietPrompt(scope, slot, ctx) {
       "Prioriza comidas que den energia y poca pesadez (digestion ligera). "
     : "No hay senales claras: propone una dieta equilibrada y ligera, de digestion facil. ";
   return (
-    "Eres un asistente de diario alimentario personal. NO eres medico ni nutricionista y NO diagnosticas. " +
+    "Eres un asistente de diario alimentario personal. " +
     "Propon una dieta de prueba para observar como responde la digestion del usuario. " +
     avoidTxt +
     "Usa alimentos comunes en Espana, raciones normales, preparaciones sencillas (plancha, horno, vapor). " +
-    "Explica bien el plan para que el usuario pueda seguirlo sin dudas: cantidades orientativas, " +
+    "Explica bien el plan para que el usuario pueda seguirlo sin dudas: cantidades aproximadas, " +
     "pasos de preparacion sencillos, por que ayuda, una alternativa equivalente y que observar despues. " +
     "Responde UNICAMENTE con un objeto JSON, sin texto antes o despues y sin bloques markdown. " +
     'Forma exacta: {"mode": "' + (ctx.avoid.length ? "exclusion" : "equilibrada") + '", ' +
     '"avoid": [<claves excluidas de: ' + FALLBACK_INGREDIENTS.join(", ") + ">], " +
     '"rationale": "<2-3 frases: por que este plan segun sus registros>", ' +
-    '"meals": [' + slots.map((s) => '{"slot": "' + s + '", "time": "<hora orientativa HH:MM>", ' +
+    '"meals": [' + slots.map((s) => '{"slot": "' + s + '", "time": "<hora aproximada HH:MM>", ' +
       '"name": "<nombre del plato>", "items": ["<ingrediente con cantidad, ej. 150 g de merluza>"], ' +
       '"steps": ["<paso de preparacion>"], "why": "<por que ayuda a la digestion y da energia>", ' +
       '"swap": "<alternativa equivalente que respete las exclusiones>", ' +
