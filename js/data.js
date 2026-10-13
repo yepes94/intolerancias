@@ -43,5 +43,10 @@
 
   const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 
-  window.IntolData = { ONSET_WINDOWS, SYMPTOMS, KEYWORDS, DISCLAIMER, DEFAULT_MODEL };
+  // Groq (API compatible con OpenAI): texto rápido y barato.
+  const GROQ_MODEL = "llama-3.3-70b-versatile";
+  // Visión en Groq: se usa solo cuando la comida incluye foto.
+  const GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+
+  window.IntolData = { ONSET_WINDOWS, SYMPTOMS, KEYWORDS, DISCLAIMER, DEFAULT_MODEL, GROQ_MODEL, GROQ_VISION_MODEL };
 })();

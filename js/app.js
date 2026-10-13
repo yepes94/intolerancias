@@ -188,7 +188,7 @@
     try {
       const out = await prov.analyzeFood(
         { description: desc, imageDataUrl: draftPhoto },
-        settings.keys[prov.id], settings.model);
+        settings.keys[prov.id], settings.model, settings);
       box.innerHTML = "<strong>🤖 " + esc(prov.label) + ":</strong> " + esc(out.summary) +
         "<br><strong>Pregunta de seguimiento:</strong> " + esc(out.checkinQuestion || "¿Cómo te sientes?");
       // Fusiona ingredientes detectados por IA en la próxima comida guardada
@@ -487,6 +487,7 @@
     $("key-groq").value = settings.keys.groq || "";
     $("key-cursor").value = settings.keys.cursor || "";
     $("claudeModel").value = settings.model || D.DEFAULT_MODEL;
+    $("groqModel").value = settings.groqModel || D.GROQ_MODEL;
   }
 
   $("saveKeysBtn").addEventListener("click", () => {
@@ -498,6 +499,7 @@
     };
     Object.keys(settings.keys).forEach((k) => { if (!settings.keys[k]) delete settings.keys[k]; });
     settings.model = $("claudeModel").value.trim() || D.DEFAULT_MODEL;
+    settings.groqModel = $("groqModel").value.trim() || D.GROQ_MODEL;
     S.saveSettings(settings);
     renderProviderStatus();
     $("providerMsg").textContent = "Claves guardadas solo en este navegador. Nunca se commitean.";

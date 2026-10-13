@@ -131,16 +131,18 @@
         Prioridad automática: <strong>Claude &gt; Hermes &gt; Groq &gt; Cursor</strong>.</p>
       <div class="card">
         <div id="providerStatus"></div>
-        <label class="field"><span>Anthropic Claude <small>visión + chat · se usa primero</small></span>
+        <label class="field"><span>Anthropic Claude <small>visión + chat · se usa primero · <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">conseguir key ↗</a></small></span>
           <input type="password" id="key-claude" placeholder="sk-ant-…" autocomplete="off" /></label>
         <label class="field"><span>Hermes <small>pendiente de implementar</small></span>
           <input type="password" id="key-hermes" placeholder="(próximamente)" autocomplete="off" /></label>
-        <label class="field"><span>Groq <small>pendiente de implementar</small></span>
-          <input type="password" id="key-groq" placeholder="(próximamente)" autocomplete="off" /></label>
+        <label class="field"><span>Groq <small>rápida y gratuita · texto + visión · <a href="https://console.groq.com/keys" target="_blank" rel="noopener">conseguir key ↗</a></small></span>
+          <input type="password" id="key-groq" placeholder="gsk-…" autocomplete="off" /></label>
         <label class="field"><span>Cursor <small>pendiente de implementar</small></span>
           <input type="password" id="key-cursor" placeholder="(próximamente)" autocomplete="off" /></label>
         <label class="field"><span>Modelo Claude</span>
           <input type="text" id="claudeModel" autocomplete="off" /></label>
+        <label class="field"><span>Modelo Groq <small>texto (sin foto) · con foto se usa visión automáticamente</small></span>
+          <input type="text" id="groqModel" autocomplete="off" /></label>
         <div class="row">
           <button id="saveKeysBtn" class="btn primary">Guardar claves</button>
           <button id="testIaBtn" class="btn">Probar conexión</button>

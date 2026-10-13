@@ -11,7 +11,7 @@
  *     ping(apiKey, model) -> Promise<string>   // "ok" o lanza Error explicativo
  *   }
  *
- * Para añadir Hermes/Groq/Cursor: implementar analyzeFood + ping en su
+ * Para añadir Hermes/Cursor: implementar analyzeFood + ping en su
  * entrada del registro con la misma firma. Nada más cambia (prioridad,
  * selección, UI y llamadas ya son genéricas). Orden: Claude > Hermes > Groq > Cursor.
  */
@@ -49,6 +49,10 @@
   }
 
   const CLAUDE_URL = "https://api.anthropic.com/v1/messages";
+
+  // Groq expone una API compatible con OpenAI (permite llamadas directas desde el navegador).
+  const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
+  const GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
 
   function claudeHeaders(apiKey) {
     return {
@@ -147,9 +151,65 @@
         async analyzeFood() { throw new Error("Proveedor Hermes aún no implementado."); }
       },
       groq: {
-        id: "groq", label: "Groq", implemented: false, needsVision: true,
-        async ping() { throw new Error("Proveedor Groq aún no implementado (pendiente, sin refactorizar: implementar ping + analyzeFood aquí)."); },
-        async analyzeFood() { throw new Error("Proveedor Groq aún no implementado."); }
+        id: "groq",
+        label: "Groq",
+        implemented: true,
+        needsVision: true,
+
+        async ping(apiKey) {
+          const key = (apiKey || "").trim();
+          if (!/^gsk_/.test(key)) {
+            throw new Error("Esa clave no parece de Groq (suelen empezar por “gsk_”). Consigue una gratis en console.groq.com/keys.");
+          }
+          const res = await fetch(GROQ_MODELS_URL, {
+            headers: { authorization: "Bearer " + key }
+          });
+          if (!res.ok) {
+            const t = await res.text().catch(() => "");
+            throw new Error(`Groq ${res.status}: ${t.slice(0, 160) || res.statusText}`);
+          }
+          return "ok";
+        },
+
+        async analyzeFood({ description, imageDataUrl }, apiKey, _model, settings) {
+          const hasImage = !!imageDataUrl;
+          // Con foto se usa el modelo con visión; sin foto, el de texto (configurable en Ajustes).
+          const model = hasImage
+            ? D().GROQ_VISION_MODEL
+            : ((settings && settings.groqModel) || D().GROQ_MODEL);
+          const content = [];
+          if (hasImage) {
+            content.push({ type: "image_url", image_url: { url: imageDataUrl } });
+          }
+          content.push({ type: "text", text: foodPrompt(description, hasImage) });
+          const res = await fetch(GROQ_CHAT_URL, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: "Bearer " + apiKey
+            },
+            body: JSON.stringify({
+              model,
+              max_tokens: 500,
+              temperature: 0.2,
+              response_format: { type: "json_object" },
+              messages: [
+                { role: "system", content: "Respondes SOLO con JSON válido, sin texto adicional." },
+                { role: "user", content }
+              ]
+            })
+          });
+          if (!res.ok) {
+            const t = await res.text().catch(() => "");
+            throw new Error(`Groq ${res.status}: ${t.slice(0, 200) || res.statusText}`);
+          }
+          const data = await res.json();
+          const text = (data.choices && data.choices[0] && data.choices[0].message &&
+            data.choices[0].message.content) || "";
+          const parsed = parseJsonLoose(text);
+          parsed.summary = (parsed.summary || "") + " " + D().DISCLAIMER;
+          return parsed;
+        }
       },
       cursor: {
         id: "cursor", label: "Cursor", implemented: false, needsVision: false,
