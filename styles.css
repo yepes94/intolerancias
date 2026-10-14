@@ -356,3 +356,66 @@ ul.plain li:last-child { border-block-end: 0; }
 /* ---------- ajustes ---------- */
 #providerStatus ul.plain li { border-color: var(--line); }
 .how { display: flex; flex-direction: column; gap: 0.4rem; margin: 0; padding-inline-start: 1.25rem; font-size: var(--text-s); }
+
+/* ---------- bebidas ---------- */
+#drinkSize.segmented {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-radius: var(--radius-m);
+}
+.drink-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2xs, 0.35rem);
+}
+@media (width < 26rem) {
+  .drink-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.drink-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-block-size: 3.75rem;
+  padding: 0.5rem 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s, 0.625rem);
+  background: var(--tile, var(--field));
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+}
+.drink-btn span[aria-hidden] { font-size: 1.5rem; line-height: 1.1; }
+@media (hover: hover) and (pointer: fine) {
+  .drink-btn:hover { background: var(--sunken); }
+}
+.pill.src-drink { background: var(--brand-subtle); color: color-mix(in oklch, var(--brand), var(--ink) 45%); }
+.drink-entry { border-inline-start: 4px solid var(--brand); }
+.hydra-track {
+  block-size: 0.9rem;
+  border-radius: 999px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+.hydra-fill {
+  block-size: 100%;
+  inline-size: 0;
+  border-radius: inherit;
+  background: var(--brand);
+  transition: inline-size 240ms var(--ease-out, ease-out);
+}
+.drink-day p { margin-block: var(--space-xs, 0.5rem) 0; }
+.goal-row { display: flex; gap: var(--space-xs, 0.5rem); align-items: center; }
+.goal-row input[type="number"] {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s, 0.625rem);
+  background: var(--field);
+  color: var(--ink);
+  font-size: max(16px, 1rem);
+}

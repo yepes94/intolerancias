@@ -10,6 +10,7 @@
   const Home = window.IntolHome;
   const Bowel = window.IntolBowel;
   const BowelUI = window.IntolBowelUI;
+  const Drinks = window.IntolDrinks;
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s)
@@ -20,6 +21,7 @@
   let diary = S.getDiary();
   let diets = S.getDiets();
   let stools = Bowel.sanitizeList(S.getBowel());
+  let drinks = S.getDrinks();
   let settings = S.getSettings();
   // Los check-ins respondidos del sistema anterior pasan al diario como históricos
   // (una sola vez; la clave antigua no se borra).
@@ -48,9 +50,11 @@
   function fmtDT(ts) {
     return new Date(ts).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   }
-  function persist() { S.saveMeals(meals); S.saveDiary(diary); S.saveBowel(stools); Home.refresh(); }
-  function mealById(id) { return meals.find((m) => m.id === id); }
-  function feels() { return Diary.feelings(meals, diary, stools); }
+  function persist() { S.saveMeals(meals); S.saveDiary(diary); S.saveBowel(stools); S.saveDrinks(drinks); Home.refresh(); }
+  function mealById(id) { return meals.find((m) => m.id === id) || drinks.find((d) => d.id === id); }
+  /** Comidas + bebidas: lo que se cruza con el diario, la dieta y el Resumen. */
+  function intakes() { return meals.concat(drinks); }
+  function feels() { return Diary.feelings(intakes(), diary, stools); }
   function showTab(name) {
     const b = document.querySelector('[data-tab="' + name + '"]');
     if (b) b.click();
@@ -352,11 +356,11 @@
   });
 
   function updateDiaryCtx() {
-    const n = Diary.windowMeals(meals, diaryAtFixed || Date.now()).length;
+    const n = Diary.windowMeals(intakes(), diaryAtFixed || Date.now()).length;
     const diet = diaryDietId && diets.find((d) => d.id === diaryDietId);
     $("diaryCtx").textContent = (diet ? "Siguiendo: " + dietTitle(diet) + ". " : "") + (n
-      ? "Se cruzará con " + n + " comida(s) de las 24 h anteriores."
-      : "No hay comidas en las 24 h anteriores a esa hora: se guardará igualmente.");
+      ? "Se cruzará con " + n + " registro(s) de las 24 h anteriores (comidas y bebidas)."
+      : "No hay comidas ni bebidas en las 24 h anteriores a esa hora: se guardará igualmente.");
     const text = $("diaryText").value;
     const sy = Diary.extractSymptoms(text);
     $("diaryDetected").textContent = (sy.length ? "Detectado: " + sy.join(", ") + "." : "") +
@@ -400,6 +404,7 @@
     window.scrollTo({ top: lockedScrollY, behavior: "instant" });
   }
   $("diaryModal").addEventListener("close", unlockScroll);
+  $("drinkModal").addEventListener("close", unlockScroll);
 
   $("diaryFab").addEventListener("click", () => openDiary());
   $("diaryOpenBtn").addEventListener("click", () => openDiary());
@@ -437,10 +442,11 @@
 
   async function analyzeEntry(e) {
     const others = diary.filter((x) => x.id !== e.id);
-    const suspects = Diet.buildSignals(meals, Diary.feelings(meals, others, stools)).avoid;
-    const local = () => ({ source: "local", label: "Análisis local", at: Date.now(), ...Diary.localAnalyze(e, meals, suspects, stools) });
+    const all = intakes();
+    const suspects = Diet.buildSignals(all, Diary.feelings(all, others, stools)).avoid;
+    const local = () => ({ source: "local", label: "Análisis local", at: Date.now(), ...Diary.localAnalyze(e, all, suspects, stools) });
     const prov = P.active(settings);
-    const withMeals = Diary.windowMeals(meals, e.at).length > 0;
+    const withMeals = Diary.windowMeals(all, e.at).length > 0;
     if (!prov || !prov.implemented || !prov.analyzeDiary || !withMeals) {
       e.analysis = local();
       persist(); afterDiaryChange();
@@ -448,7 +454,7 @@
     }
     analyzing.add(e.id);
     renderTimeline();
-    const { body, refs } = Diary.payload(e, meals, suspects, stools);
+    const { body, refs } = Diary.payload(e, all, suspects, stools);
     let analysis;
     try {
       const res = await prov.analyzeDiary(body, settings.keys[prov.id], settings.model, settings);
@@ -554,19 +560,132 @@
     return card;
   }
 
+  // ---------- bebidas ----------
+  let drinkType = "agua";
+  let drinkSize = "vaso";
+
+  function renderDrinkQuick() {
+    const grid = $("drinkQuick");
+    if (!grid || !Drinks) return;
+    grid.innerHTML = "";
+    for (const t of Drinks.TYPES) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "drink-btn";
+      b.innerHTML = "<span aria-hidden='true'>" + t.emoji + "</span><span>" + esc(t.label) + "</span>";
+      b.setAttribute("aria-label", "Registrar " + t.label);
+      b.addEventListener("click", () => openDrink(t.id));
+      grid.appendChild(b);
+    }
+    const h = Drinks.hydration(drinks, settings.waterGoalMl, Date.now());
+    $("drinkHydraLine").textContent = "Hoy: " + h.ml + " ml de agua de " + h.goal + " ml" +
+      (h.remaining ? " (faltan " + h.remaining + " ml)." : " ¡objetivo cumplido! 🎉");
+  }
+
+  function toLocalInputDrink(ts) {
+    const d = new Date(ts);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  }
+
+  function renderDrinkSizes() {
+    const box = $("drinkSize");
+    box.innerHTML = "";
+    for (const s of Drinks.SIZES) {
+      const lab = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "radio"; input.name = "drinkSize"; input.value = s.id;
+      input.checked = s.id === drinkSize;
+      input.addEventListener("change", () => {
+        drinkSize = s.id;
+        const custom = s.ml == null;
+        $("drinkMlField").classList.toggle("hidden", !custom);
+        if (!custom) $("drinkMl").value = s.ml;
+      });
+      const span = document.createElement("span");
+      span.textContent = s.ml != null ? s.label + " · " + s.ml + " ml" : s.label;
+      lab.append(input, span);
+      box.appendChild(lab);
+    }
+    const cur = Drinks.sizeById(drinkSize);
+    $("drinkMlField").classList.toggle("hidden", cur && cur.ml != null);
+  }
+
+  function openDrink(typeId) {
+    if (!Drinks) return;
+    const t = Drinks.typeById(typeId) || Drinks.typeById("otra");
+    drinkType = t.id;
+    drinkSize = t.size;
+    $("drinkTitle").textContent = t.emoji + " " + t.label;
+    $("drinkCtx").textContent = t.components.length
+      ? "Cuenta como " + t.components.map((c) => D.ONSET_WINDOWS[c].label.toLowerCase()).join(", ") + " en tus análisis."
+      : "Solo suma hidratación: no aporta componentes a los análisis.";
+    renderDrinkSizes();
+    const s = Drinks.sizeById(drinkSize);
+    $("drinkMl").value = s && s.ml != null ? s.ml : 250;
+    $("drinkAt").value = toLocalInputDrink(Date.now());
+    $("drinkAt").max = toLocalInputDrink(Date.now() + 60e3);
+    if (!$("drinkModal").open) {
+      lockScroll();
+      $("drinkModal").showModal();
+    }
+  }
+
+  $("drinkClose").addEventListener("click", () => $("drinkModal").close());
+  $("drinkSave").addEventListener("click", () => {
+    const s = Drinks.sizeById(drinkSize);
+    const ml = s && s.ml != null ? s.ml : Number($("drinkMl").value);
+    let at = new Date($("drinkAt").value).getTime();
+    if (!isFinite(at)) at = Date.now();
+    const d = Drinks.makeDrink({ type: drinkType, sizeId: drinkSize, ml, at: Math.min(at, Date.now()) });
+    drinks.unshift(d);
+    persist();
+    $("drinkModal").close();
+    renderDrinkQuick(); renderTimeline(); renderSummary(); renderDiet(); checkReminder();
+    toast(d.emoji + " " + d.description + " guardada");
+  });
+
+  function drinkCard(m) {
+    const card = document.createElement("article");
+    card.className = "meal drink-entry";
+    card.id = "entry-" + m.id;
+    const ings = (m.ingredients || []).map((i) => {
+      const w = D.ONSET_WINDOWS[i.id];
+      return "<span class='pill src-drink'>" + esc(w ? w.label : i.id) + "</span>";
+    }).join("");
+    card.innerHTML =
+      "<header class='meal-head'><span class='diary-icon' aria-hidden='true'>" + esc(m.emoji || "🥤") + "</span>" +
+      "<div class='meal-title'><strong>" + esc(m.description || "Bebida") + "</strong>" +
+      "<time datetime='" + new Date(m.createdAt).toISOString() + "'>" + fmtDT(m.createdAt) + "</time></div></header>" +
+      (ings ? "<div class='pills'>" + ings + "</div>" : "<p class='hint'>Solo hidrata.</p>");
+    const row = document.createElement("div");
+    row.className = "row";
+    const b2 = document.createElement("button");
+    b2.className = "btn small ghost"; b2.textContent = "Borrar";
+    b2.addEventListener("click", () => {
+      if (!confirm("¿Borrar esta bebida?")) return;
+      drinks = drinks.filter((x) => x.id !== m.id);
+      persist(); renderDrinkQuick(); renderTimeline(); renderSummary(); renderDiet();
+    });
+    row.appendChild(b2);
+    card.appendChild(row);
+    return card;
+  }
+
   // ---------- timeline ----------
   async function renderTimeline() {
     const wrap = $("timeline");
-    if (!meals.length && !diary.length && !stools.length) {
+    if (!meals.length && !diary.length && !stools.length && !drinks.length) {
       wrap.innerHTML = "<p class='empty'>Aún no hay comidas ni entradas del diario. Registra la primera en la pestaña ＋ Registrar.</p>";
       return;
     }
     wrap.innerHTML = "";
-    const items = meals.map((m) => ({ t: m.createdAt, m })).concat(diary.map((e) => ({ t: e.at, e })), stools.map((b) => ({ t: b.at, b })))
+    const items = intakes().map((m) => ({ t: m.createdAt, m })).concat(diary.map((e) => ({ t: e.at, e })), stools.map((b) => ({ t: b.at, b })))
       .sort((a, b) => b.t - a.t).slice(0, 80);
     for (const it of items) {
       if (it.e) { wrap.appendChild(diaryCard(it.e)); continue; }
       if (it.b) { wrap.appendChild(BowelUI.card(it.b, deleteStool)); continue; }
+      if (it.m && it.m.kind === "drink") { wrap.appendChild(drinkCard(it.m)); continue; }
       const m = it.m;
       const card = document.createElement("article");
       card.className = "meal";
@@ -672,10 +791,10 @@
 
   // ---------- resumen ----------
   function stats() {
-    // ingId -> {n, sum, bad}
+    // ingId -> {n, sum, bad} (comidas y bebidas)
     const acc = {};
     const recs = feels();
-    for (const m of meals) {
+    for (const m of intakes()) {
       const rel = recs.filter((c) => c.mealId === m.id);
       if (!rel.length) continue;
       const avg = rel.reduce((a, c) => a + c.feeling, 0) / rel.length;
@@ -690,6 +809,7 @@
 
   function renderSummary() {
     BowelUI.renderSummary($("bowelSummary"), stools);
+    renderHydration();
     const rows = stats();
     const good = rows.filter((r) => r.avg >= 3.8).sort((a, b) => b.avg - a.avg);
     const bad = rows.filter((r) => r.avg <= 2.6).sort((a, b) => a.avg - b.avg);
@@ -721,9 +841,34 @@
     }
   }
 
+  // ---------- hidratación (Resumen) ----------
+  function renderHydration() {
+    if (!Drinks) return;
+    const h = Drinks.hydration(drinks, settings.waterGoalMl, Date.now());
+    $("hydraFill").style.width = h.pct + "%";
+    $("hydraText").textContent = h.ml + " ml de " + h.goal + " ml de agua" +
+      (h.remaining ? " · faltan " + h.remaining + " ml." : " · ¡objetivo cumplido! 🎉");
+    if (document.activeElement !== $("waterGoal")) $("waterGoal").value = h.goal;
+    const day = Drinks.componentsOnDay(drinks, Date.now());
+    const ids = Object.keys(day);
+    $("drinkDayList").innerHTML = ids.length
+      ? "<p><strong>Componentes de hoy en bebidas:</strong></p><div class='pills'>" + ids.map((id) => {
+        const w = D.ONSET_WINDOWS[id];
+        return "<span class='pill src-drink'>" + esc(w ? w.label : id) + " ×" + day[id].n + "</span>";
+      }).join("") + "</div>"
+      : "<p class='hint'>Hoy aún no hay bebidas con componentes.</p>";
+  }
+
+  $("waterGoalBtn").addEventListener("click", () => {
+    settings.waterGoalMl = Drinks.sanitizeGoal($("waterGoal").value);
+    S.saveSettings(settings);
+    renderHydration(); renderDrinkQuick();
+    toast("Objetivo: " + settings.waterGoalMl + " ml/día");
+  });
+
   $("exportBtn").addEventListener("click", () => {
     const legacy = S.getCheckins();
-    const data = { meals, diary, diets, bowel: stools, ...(legacy.length ? { checkinsLegacy: legacy } : {}), exportedAt: new Date().toISOString() };
+    const data = { meals, diary, diets, bowel: stools, drinks, waterGoalMl: settings.waterGoalMl, ...(legacy.length ? { checkinsLegacy: legacy } : {}), exportedAt: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)],
       { type: "application/json" });
     const a = document.createElement("a");
@@ -733,9 +878,9 @@
     URL.revokeObjectURL(a.href);
   });
   $("wipeBtn").addEventListener("click", () => {
-    if (!confirm("¿Borrar TODOS los datos locales (comidas, diario, deposiciones, planes, fotos)?")) return;
-    S.wipe(); meals = []; diary = []; diets = []; stools = [];
-    persist(); S.setDiaryMigrated(); afterDiaryChange();
+    if (!confirm("¿Borrar TODOS los datos locales (comidas, bebidas, diario, deposiciones, planes, fotos)?")) return;
+    S.wipe(); meals = []; diary = []; diets = []; stools = []; drinks = [];
+    persist(); S.setDiaryMigrated(); afterDiaryChange(); renderDrinkQuick();
     toast("Datos locales borrados");
   });
 
@@ -1056,6 +1201,10 @@
   document.body.dataset.tab = "home";
   $("reminderEnabled").checked = settings.reminder.enabled;
   $("reminderTime").value = settings.reminder.time;
+  renderDrinkQuick();
+  // Enganche al tile «Bebida» del Home (docs/diseno.md): si el rediseño ya
+  // trae js/home.js, el tile abre este mismo registro; si no, no hace nada.
+  if (Drinks) Drinks.registerHomeTile(() => openDrink("agua"), () => drinks.map((d) => d.createdAt));
   renderTimeline();
   renderDiaryRecent();
   renderProviderStatus();

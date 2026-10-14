@@ -108,6 +108,15 @@
       </div>
 
       <div class="card">
+        <h3>🥤 Bebidas <small>agua y lo que bebes, con sus componentes</small></h3>
+        <p class="hint" id="drinkHydraLine">Hoy: 0 ml de agua.</p>
+        <div id="drinkQuick" class="drink-grid" role="group" aria-label="Registrar bebida"></div>
+        <p class="hint">Cada bebida cuenta para el diario, la dieta y el Resumen
+          (cafeína, lactosa, alcohol, gluten de la cerveza, fructosa…).
+          Solo el agua suma en el objetivo diario.</p>
+      </div>
+
+      <div class="card">
         <h3>📝 Diario de síntomas <small>escribe cuando te sientas mal</small></h3>
         <p class="hint">Cuéntalo con tus palabras cuando quieras. Al guardarlo, la app cruza lo que cuentas
           con lo que comiste en las 24 h anteriores y te dice qué puede estar detrás.</p>
@@ -165,6 +174,17 @@
       <p class="hint">Correlación simple y local: cruza tu diario con las comidas de las 24 h anteriores
         (o con la comida señalada como posible causa) y agrupa por ingrediente sospechoso.</p>
       <div id="suggestions" class="suggestions"></div>
+      <div class="card" id="hydraCard">
+        <h3>💧 Hidratación de hoy</h3>
+        <div class="hydra-track" role="progressbar" aria-label="Agua de hoy">
+          <div class="hydra-fill" id="hydraFill"></div>
+        </div>
+        <p class="hint" id="hydraText"></p>
+        <div id="drinkDayList" class="drink-day"></div>
+        <label class="field"><span>Objetivo diario de agua <small>(ml)</small></span>
+          <span class="goal-row"><input type="number" id="waterGoal" min="250" max="5000" step="50" inputmode="numeric" />
+          <button id="waterGoalBtn" class="btn small primary">Guardar</button></span></label>
+      </div>
       <div class="cols">
         <div class="card verdict verdict-good"><h3>✅ Sienta bien</h3><ul id="goodList" class="plain"></ul></div>
         <div class="card verdict verdict-mid"><h3>⚠️ A vigilar</h3><ul id="midList" class="plain"></ul></div>
@@ -247,6 +267,28 @@
     </section>
   </main>
 
+  <!-- Bebida: cantidad y hora -->
+  <dialog id="drinkModal" class="sheet" aria-labelledby="drinkTitle" closedby="any">
+    <header class="sheet-head">
+      <h3 id="drinkTitle">Registrar bebida</h3>
+      <p id="drinkCtx" class="hint"></p>
+    </header>
+    <div class="sheet-body">
+      <div class="field">
+        <span id="drinkSizeLabel">Cantidad</span>
+        <div class="segmented" id="drinkSize" role="group" aria-labelledby="drinkSizeLabel"></div>
+      </div>
+      <label class="field hidden" id="drinkMlField"><span>Mililitros</span>
+        <input type="number" id="drinkMl" min="20" max="2000" step="10" inputmode="numeric" /></label>
+      <label class="field"><span>Hora</span>
+        <input type="datetime-local" id="drinkAt" /></label>
+    </div>
+    <footer class="sheet-foot row">
+      <button id="drinkSave" class="btn primary">Guardar bebida</button>
+      <button id="drinkClose" class="btn ghost">Cancelar</button>
+    </footer>
+  </dialog>
+
   <!-- Diario de síntomas -->
   <dialog id="diaryModal" class="sheet" aria-labelledby="diaryTitle" closedby="any">
     <header class="sheet-head">
@@ -296,6 +338,7 @@
   <script src="js/home.js"></script>
   <script src="js/features/bowel.js"></script>
   <script src="js/features/bowel-ui.js"></script>
+  <script src="js/features/drinks.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
