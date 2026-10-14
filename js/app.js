@@ -7,6 +7,7 @@
   const D = window.IntolData;
   const Diet = window.IntolDiet;
   const Diary = window.IntolDiary;
+  const Home = window.IntolHome;
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s)
@@ -44,7 +45,7 @@
   function fmtDT(ts) {
     return new Date(ts).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   }
-  function persist() { S.saveMeals(meals); S.saveDiary(diary); }
+  function persist() { S.saveMeals(meals); S.saveDiary(diary); Home.refresh(); }
   function mealById(id) { return meals.find((m) => m.id === id); }
   function feels() { return Diary.feelings(meals, diary); }
   function showTab(name) {
@@ -61,7 +62,9 @@
       b.classList.add("active"); b.setAttribute("aria-current", "page");
       document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
       $("tab-" + b.dataset.tab).classList.add("active");
+      document.body.dataset.tab = b.dataset.tab;
       if (!document.body.classList.contains("scroll-locked")) window.scrollTo({ top: 0, behavior: "instant" });
+      if (b.dataset.tab === "home") Home.refresh();
       if (b.dataset.tab === "timeline") renderTimeline();
       if (b.dataset.tab === "resumen") renderSummary();
       if (b.dataset.tab === "dieta") renderDiet();
@@ -375,7 +378,7 @@
     if (!$("diaryModal").open) {
       lockScroll();
       $("diaryModal").showModal();
-      $("diaryModal").querySelector(".modal-body").scrollTop = 0;
+      $("diaryModal").querySelector(".sheet-body").scrollTop = 0;
       $("diaryText").focus({ preventScroll: true });
     }
   }
@@ -1007,7 +1010,22 @@
     }
   }
 
+  // ---------- tiles de Home ----------
+  window.IntolToast = toast;
+  Home.registerTile({
+    id: "comida", emoji: "🥣", title: "Comida", desc: "Registra los alimentos que has comido",
+    onOpen: () => { showTab("registrar"); $("mealDesc").focus({ preventScroll: true }); },
+    records: () => meals.map((m) => m.createdAt)
+  });
+  Home.registerTile({
+    id: "diario", order: 50, wide: true, emoji: "📝", title: "¿Cómo te sientes?",
+    desc: "Cuéntalo en el diario y busca qué te ha sentado mal",
+    onOpen: () => openDiary(),
+    records: () => diary.map((e) => e.at)
+  });
+
   // ---------- init ----------
+  document.body.dataset.tab = "home";
   $("reminderEnabled").checked = settings.reminder.enabled;
   $("reminderTime").value = settings.reminder.time;
   renderTimeline();

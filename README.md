@@ -17,6 +17,7 @@ python3 -m http.server 8080   # o: npx serve .
 Abre http://localhost:8080 (también abre con doble clic en `index.html`, con funciones degradadas).
 
 Plan de verificación manual paso a paso: [docs/verificacion.md](docs/verificacion.md).
+Sistema de diseño (tokens, componentes, tiles de Home): [docs/diseno.md](docs/diseno.md).
 
 > **Gate de aceptación:** sin toda la evidencia marcada en la descripción del PR
 > (plantilla `.github/pull_request_template.md`) no se pasa de draft a ready ni se
