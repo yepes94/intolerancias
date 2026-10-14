@@ -12,7 +12,10 @@
  *     slot: "desayuno"|"comida"|"merienda"|"cena" (solo scope "meal"),
  *     context: { avoid: ["gluten", …], suspects: [{ id, n, bad, symptoms }],
  *                recent: [{ d, ings, comps, f, s }], baseline,
- *                bowel: { days, counts: [n por tipo de Bristol 1-7], pain, urgency, blood } (opcional) },
+ *                bowel: { days, counts: [n por tipo de Bristol 1-7], pain, urgency, blood } (opcional),
+ *                wellbeing: { days, avgMood, avgSleepH, avgSleepQ, lowSleepDays, stressDays,
+ *                             lowMoodDays, tags: ["estres", …], factors: [{ id, badWith, withN }] } },
+ *       (wellbeing, opcional: ánimo y sueño de los últimos 7 días, como factor de contexto)
  *     validIngredients: ["lactosa", …] (opcional) }
  *
  *   200 { ok: true, provider, action: "plan", result } con result =
@@ -62,6 +65,36 @@ function clip(s, n) {
 }
 
 // ---- Contexto (lo envía el cliente ya resumido; aquí solo se sanea) ----
+const WELLBEING_TAGS = {
+  estres: "estres", cansancio: "cansancio", ansiedad: "ansiedad", tristeza: "tristeza",
+  irritable: "irritabilidad", energia: "energia", calma: "calma", motivacion: "motivacion",
+};
+const WELLBEING_FACTORS = { pocoSueno: "dormir poco", estres: "estres o ansiedad", animoBajo: "animo bajo" };
+
+function sanitizeWellbeing(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const num = (v, min, max, dec) => {
+    if (v == null || !isFinite(Number(v))) return null;
+    const k = Math.pow(10, dec);
+    return Math.round(Math.max(min, Math.min(max, Number(v))) * k) / k;
+  };
+  const cnt = (v) => num(v, 0, 7, 0) || 0;
+  const w = {
+    days: cnt(raw.days),
+    avgMood: num(raw.avgMood, 1, 5, 1),
+    avgSleepH: num(raw.avgSleepH, 0, 16, 1),
+    avgSleepQ: num(raw.avgSleepQ, 1, 5, 1),
+    lowSleepDays: cnt(raw.lowSleepDays),
+    stressDays: cnt(raw.stressDays),
+    lowMoodDays: cnt(raw.lowMoodDays),
+    tags: [...new Set((Array.isArray(raw.tags) ? raw.tags : []).filter((t) => typeof t === "string" && WELLBEING_TAGS[t]))].slice(0, 4),
+    factors: (Array.isArray(raw.factors) ? raw.factors : [])
+      .filter((f) => f && typeof f.id === "string" && WELLBEING_FACTORS[f.id]).slice(0, 3)
+      .map((f) => ({ id: f.id, badWith: cnt(f.badWith), withN: Math.max(cnt(f.withN), cnt(f.badWith)) })),
+  };
+  return w.days ? w : null;
+}
+
 function sanitizeContext(raw, validKeys) {
   const c = raw && typeof raw === "object" ? raw : {};
   const keyOk = (x) => typeof x === "string" && validKeys.includes(x);
@@ -94,7 +127,7 @@ function sanitizeContext(raw, validKeys) {
       blood: Math.max(0, Math.min(999, Number(bw.blood) || 0)),
     }
     : null;
-  return { avoid, suspects, recent, baseline, bowel };
+  return { avoid, suspects, recent, baseline, bowel, wellbeing: sanitizeWellbeing(c.wellbeing) };
 }
 
 function contextText(ctx) {
@@ -112,6 +145,22 @@ function contextText(ctx) {
       b.counts.map((n, i) => `tipo ${i + 1}: ${n}`).join(", ") +
       `. Con dolor: ${b.pain}, con urgencia: ${b.urgency}, con sangre: ${b.blood}. ` +
       "Si predominan los tipos 6-7 prioriza comidas astringentes y de digestion suave; si predominan 1-2, mas fibra e hidratacion; sin diagnosticar.");
+  }
+  if (ctx.wellbeing) {
+    const w = ctx.wellbeing;
+    const bits = [`${w.days} dia(s) registrados de los ultimos 7`];
+    if (w.avgSleepH != null) bits.push(`sueno medio ${w.avgSleepH} h`);
+    if (w.avgSleepQ != null) bits.push(`calidad media del sueno ${w.avgSleepQ}/5`);
+    if (w.avgMood != null) bits.push(`animo medio ${w.avgMood}/5`);
+    if (w.lowSleepDays) bits.push(`${w.lowSleepDays} dia(s) con poco sueno`);
+    if (w.stressDays) bits.push(`${w.stressDays} dia(s) con estres o ansiedad`);
+    if (w.lowMoodDays) bits.push(`${w.lowMoodDays} dia(s) con animo bajo`);
+    if (w.tags.length) bits.push(`etiquetas frecuentes: ${w.tags.map((t) => WELLBEING_TAGS[t]).join(", ")}`);
+    lines.push("Contexto de animo y sueno (ultima semana): " + bits.join("; ") + ".");
+    if (w.factors.length) {
+      lines.push("Coincidencias con malestar: " + w.factors.map((f) => `${WELLBEING_FACTORS[f.id]} (${f.badWith}/${f.withN} dias con malestar)`).join("; ") +
+        ". Tenlo en cuenta en el plan (p. ej. cena ligera y temprana si duerme poco, comidas sencillas si hay estres), sin culpar a la comida de lo que puede venir del sueno o del estres.");
+    }
   }
   if (ctx.recent.length) {
     lines.push("Comidas recientes (descripcion | componentes | nivel 1-5 | sintomas):");

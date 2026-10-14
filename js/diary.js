@@ -3,7 +3,8 @@
  * Lógica pura del diario libre de síntomas (sin DOM, testeable en Node):
  *   - extractSymptoms(text) / redFlags(text): lo que cuenta el usuario.
  *   - windowMeals / linkedMeals: qué comidas cruzar con cada entrada (24 h antes).
- *   - payload(entry, meals): lo que viaja a /api/diary (sin fotos ni ids).
+ *   - payload(entry, meals, suspects, stools, wellbeing): lo que viaja a /api/diary (sin fotos ni ids;
+ *     `stools` = deposiciones opcionales; `wellbeing` = ánimo y sueño del día, opcional).
  *   - localAnalyze(entry, meals, suspects): causas posibles sin IA, por coincidencias.
  *   - feelings(meals, entries): registros { mealId, doneAt, feeling, symptoms } para
  *     Resumen y Dieta (mismo formato que usaban los check-ins).
@@ -162,7 +163,7 @@
   }
 
   /** Lo que viaja al proxy: texto, hora, nivel y comidas resumidas. Sin fotos ni ids. */
-  function payload(e, meals, suspects, stools) {
+  function payload(e, meals, suspects, stools, wellbeing) {
     const ms = windowMeals(meals, e.at).slice(0, MAX_MEALS);
     const refs = {};
     const list = ms.map((m, i) => {
@@ -186,7 +187,8 @@
         entry: { text: clip(e.text, 1500), time: hhmm(e.at), level: validLevel(e.level), symptoms: (e.symptoms || []).slice(0, 8) },
         meals: list,
         suspects: (suspects || []).slice(0, 6),
-        ...(bowel.length ? { bowel } : {})
+        ...(bowel.length ? { bowel } : {}),
+        ...(wellbeing ? { wellbeing } : {})
       },
       refs
     };

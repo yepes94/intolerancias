@@ -230,6 +230,29 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 - [ ] **Exportar** incluye `drinks` y `waterGoalMl`; **Borrar todo** limpia `intol.drinks.v1`.
 - [ ] **Móvil 375px**: sin scroll horizontal en la tarjeta, el diálogo ni el timeline.
 
+## 12. Ánimo y sueño (4 min, sin clave real)
+
+- [ ] **Automático**: `node tests/mood-sleep.test.mjs` → todo OK (registro por día, tendencia semanal,
+      contexto para diario y dieta, factores, `/api/diary` y `/api/diet` con `wellbeing`, store y wipe).
+- [ ] **Uno o dos toques**: Home → tile **Ánimo y sueño** → toca una carita (queda guardado: «Guardado ✔»)
+      → toca etiquetas, horas (4–9 h o −/+) y calidad 1–5; cada toque se guarda al instante. En
+      Registrar, la tarjeta «Ánimo y sueño» guarda el ánimo de hoy con un solo toque.
+- [ ] **Hoy / Ayer**: el sheet permite registrar el día anterior; tocar otra vez la misma opción la quita;
+      «Borrar este día» elimina el registro.
+- [ ] **Persistencia**: recarga → sigue ahí (`localStorage["intol.moodsleep.v1"]`); en el Home el día
+      queda marcado en la tira semanal.
+- [ ] **Timeline**: aparece la tarjeta «Ánimo y sueño» del día con ánimo, etiquetas y sueño, con ✏️ Editar y Borrar.
+- [ ] **Resumen**: «Tu semana · ánimo y sueño» con 7 días (cara + barra de horas), medias y cambio vs. la
+      semana anterior; si los días con poco sueño/estrés coinciden con malestar del diario, lo dice.
+- [ ] **Diario**: con ánimo/sueño registrado el día de la entrada, el análisis (local o IA) añade «😴 Ese día:
+      dormiste 5 h … pueden agravar lo que notas». DevTools → Network: `POST /api/diary` lleva
+      `wellbeing` (ánimo, etiquetas, horas, calidad; sin fechas ni ids).
+- [ ] **Dieta**: la pestaña Dieta indica «Se tendrá en cuenta tu ánimo y sueño de la semana»; el plan local
+      añade consejos de sueño/estrés si hay ≥2 días de poco sueño o estrés; `POST /api/diet` lleva
+      `context.wellbeing`.
+- [ ] **Exportar / Borrar todo**: el JSON incluye `moodSleep`; **Borrar todo** deja la lista vacía.
+- [ ] **Móvil 375px**: sin scroll horizontal en Home, Registrar, Timeline, Resumen ni en el sheet.
+
 ## Criterio de aceptación
 
 Todo lo anterior en verde + `docs/verificacion.md` existe + sin claves en el repo

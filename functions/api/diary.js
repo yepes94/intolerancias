@@ -13,6 +13,8 @@
  *     meals: [{ ref: "m1", h: 3.5, time: "HH:MM", d, food, comps, ings, summary }],
  *     bowel: [{ h, type: 1-7 (Bristol), pain, urgency, blood }] (opcional: deposiciones de las 24 h anteriores),
  *     suspects: ["gluten", …] (opcional: componentes que ya coincidieron con molestias),
+ *     wellbeing: { mood: 1-5|null, tags: ["estres", …], sleepH: horas|null, sleepQ: 1-5|null }
+ *       (opcional: ánimo y sueño del día de la entrada; es contexto, no una causa citable),
  *     validIngredients: ["lactosa", …] (opcional) }
  *
  *   200 { ok: true, provider, action: "diary", result } con result =
@@ -59,7 +61,25 @@ function clip(s, n) {
   return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
 }
 
+const WELLBEING_TAGS = {
+  estres: "estres", cansancio: "cansancio", ansiedad: "ansiedad", tristeza: "tristeza",
+  irritable: "irritabilidad", energia: "energia", calma: "calma", motivacion: "motivacion",
+};
+
 const HHMM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+
+function sanitizeWellbeing(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const lvl = (v) => (v != null && Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 5 ? Number(v) : null);
+  const h = Number(raw.sleepH);
+  const w = {
+    mood: lvl(raw.mood),
+    tags: [...new Set((Array.isArray(raw.tags) ? raw.tags : []).filter((t) => typeof t === "string" && WELLBEING_TAGS[t]))].slice(0, 8),
+    sleepH: raw.sleepH != null && isFinite(h) && h > 0 && h <= 16 ? Math.round(h * 2) / 2 : null,
+    sleepQ: lvl(raw.sleepQ),
+  };
+  return w.mood == null && !w.tags.length && w.sleepH == null && w.sleepQ == null ? null : w;
+}
 
 // ---- Entrada (llega ya resumida del cliente; aquí solo se sanea) ----
 function sanitize(body, validKeys) {
@@ -97,7 +117,7 @@ function sanitize(body, validKeys) {
       type: Number(b.type),
       pain: b.pain === true, urgency: b.urgency === true, blood: b.blood === true,
     }));
-  return { entry, meals, suspects, bowel };
+  return { entry, meals, suspects, bowel, wellbeing: sanitizeWellbeing(body && body.wellbeing) };
 }
 
 function windowsText(validKeys) {
@@ -105,13 +125,16 @@ function windowsText(validKeys) {
 }
 
 function diaryPrompt(input, validKeys) {
-  const { entry, meals, suspects, bowel } = input;
+  const { entry, meals, suspects, bowel, wellbeing } = input;
   const lines = [
     "Eres un asistente de diario alimentario personal. " +
     "El usuario cuenta como se siente; cruzalo con lo que comio en las 24 h anteriores e identifica " +
     "las posibles causas alimentarias, teniendo en cuenta el tiempo transcurrido desde cada comida y " +
     "las ventanas tipicas de aparicion: " + windowsText(validKeys) + ". " +
     "Si ninguna comida encaja, dilo con claridad y no inventes causas. " +
+    "Si te doy el animo y el sueno de ese dia, usalos como contexto (dormir poco, estres o ansiedad pueden " +
+    "agravar o provocar sintomas digestivos y cansancio): mencionalos en summary o advice cuando encajen, " +
+    "pero no son una comida y nunca van en causes. " +
     "Si el texto describe senales de alarma (sangre, dificultad para respirar, hinchazon de labios, lengua o garganta, " +
     "desmayo, fiebre alta, dolor intenso), pon urgent a true y recomienda atencion medica inmediata en advice. " +
     "Responde UNICAMENTE con un objeto JSON, sin texto antes o despues y sin bloques markdown. " +
@@ -127,6 +150,14 @@ function diaryPrompt(input, validKeys) {
     `Nivel de bienestar: ${entry.level == null ? "no indicado" : entry.level + "/5"}.` +
       (entry.symptoms.length ? ` Sintomas detectados: ${entry.symptoms.join(", ")}.` : ""),
   ];
+  if (wellbeing) {
+    const bits = [];
+    if (wellbeing.sleepH != null) bits.push(`durmio ${wellbeing.sleepH} h`);
+    if (wellbeing.sleepQ != null) bits.push(`calidad del sueno ${wellbeing.sleepQ}/5`);
+    if (wellbeing.mood != null) bits.push(`animo ${wellbeing.mood}/5`);
+    if (wellbeing.tags.length) bits.push(`etiquetas: ${wellbeing.tags.map((t) => WELLBEING_TAGS[t]).join(", ")}`);
+    lines.push("Contexto de ese dia (animo y sueno): " + bits.join("; ") + ".");
+  }
   if (suspects.length) lines.push("Componentes que ya coincidieron con molestias otras veces: " + suspects.join(", ") + ".");
   if (bowel.length) {
     lines.push("Deposiciones de las 24 h anteriores (escala de Bristol 1-7: 1-2 estrenimiento, 3-4 normal, 5 blanda, 6-7 diarrea) " +

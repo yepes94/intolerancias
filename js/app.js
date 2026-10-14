@@ -11,6 +11,7 @@
   const Bowel = window.IntolBowel;
   const BowelUI = window.IntolBowelUI;
   const Drinks = window.IntolDrinks;
+  const MS = window.IntolMoodSleep;
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s)
@@ -22,6 +23,7 @@
   let diets = S.getDiets();
   let stools = Bowel.sanitizeList(S.getBowel());
   let drinks = S.getDrinks();
+  let moodRecs = MS.normalize(S.getMoodSleep());
   let settings = S.getSettings();
   // Los check-ins respondidos del sistema anterior pasan al diario como históricos
   // (una sola vez; la clave antigua no se borra).
@@ -50,7 +52,7 @@
   function fmtDT(ts) {
     return new Date(ts).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   }
-  function persist() { S.saveMeals(meals); S.saveDiary(diary); S.saveBowel(stools); S.saveDrinks(drinks); Home.refresh(); }
+  function persist() { S.saveMeals(meals); S.saveDiary(diary); S.saveBowel(stools); S.saveDrinks(drinks); S.saveMoodSleep(moodRecs); Home.refresh(); }
   function mealById(id) { return meals.find((m) => m.id === id) || drinks.find((d) => d.id === id); }
   /** Comidas + bebidas: lo que se cruza con el diario, la dieta y el Resumen. */
   function intakes() { return meals.concat(drinks); }
@@ -444,7 +446,10 @@
     const others = diary.filter((x) => x.id !== e.id);
     const all = intakes();
     const suspects = Diet.buildSignals(all, Diary.feelings(all, others, stools)).avoid;
-    const local = () => ({ source: "local", label: "Análisis local", at: Date.now(), ...Diary.localAnalyze(e, all, suspects, stools) });
+    const ctx = MS.entryContext(moodRecs, e.at);
+    const context = MS.describeContext(ctx);
+    const wellbeing = ctx ? { mood: ctx.mood, tags: ctx.tags, sleepH: ctx.sleepH, sleepQ: ctx.sleepQ } : null;
+    const local = () => ({ source: "local", label: "Análisis local", at: Date.now(), ...Diary.localAnalyze(e, all, suspects, stools), ...(context ? { context } : {}) });
     const prov = P.active(settings);
     const withMeals = Diary.windowMeals(all, e.at).length > 0;
     if (!prov || !prov.implemented || !prov.analyzeDiary || !withMeals) {
@@ -454,11 +459,11 @@
     }
     analyzing.add(e.id);
     renderTimeline();
-    const { body, refs } = Diary.payload(e, all, suspects, stools);
+    const { body, refs } = Diary.payload(e, all, suspects, stools, wellbeing);
     let analysis;
     try {
       const res = await prov.analyzeDiary(body, settings.keys[prov.id], settings.model, settings);
-      analysis = { source: "ia", provider: prov.id, label: prov.label, at: Date.now(), ...Diary.applyRefs(res, refs) };
+      analysis = { source: "ia", provider: prov.id, label: prov.label, at: Date.now(), ...Diary.applyRefs(res, refs), ...(context ? { context } : {}) };
       if (Diary.redFlags(e.text) || Bowel.windowStools(stools, e.at).some(Bowel.redFlag)) analysis.urgent = true;
     } catch (err) {
       const info = P.describeError(err, prov.label);
@@ -520,6 +525,7 @@
       "<p>" + esc(a.summary || "") + "</p>" +
       (causes ? "<ol class='diary-causes'>" + causes + "</ol>" : "") +
       (a.advice ? "<p>💡 " + esc(a.advice) + "</p>" : "") +
+      (a.context ? "<p class='mood-context'>😴 " + esc(a.context) + "</p>" : "") +
       (a.error ? "<p class='hint'>⚠️ La IA no respondió: " + esc(a.error) + " Se muestra el análisis local.</p>" : "") +
       "</div>";
   }
@@ -675,17 +681,19 @@
   // ---------- timeline ----------
   async function renderTimeline() {
     const wrap = $("timeline");
-    if (!meals.length && !diary.length && !stools.length && !drinks.length) {
+    if (!meals.length && !diary.length && !stools.length && !drinks.length && !moodRecs.length) {
       wrap.innerHTML = "<p class='empty'>Aún no hay comidas ni entradas del diario. Registra la primera en la pestaña ＋ Registrar.</p>";
       return;
     }
     wrap.innerHTML = "";
     const items = intakes().map((m) => ({ t: m.createdAt, m })).concat(diary.map((e) => ({ t: e.at, e })), stools.map((b) => ({ t: b.at, b })))
+      .concat(moodRecs.map((r) => ({ t: MS.dayStart(r.day), r })))
       .sort((a, b) => b.t - a.t).slice(0, 80);
     for (const it of items) {
       if (it.e) { wrap.appendChild(diaryCard(it.e)); continue; }
       if (it.b) { wrap.appendChild(BowelUI.card(it.b, deleteStool)); continue; }
       if (it.m && it.m.kind === "drink") { wrap.appendChild(drinkCard(it.m)); continue; }
+      if (it.r) { wrap.appendChild(moodEntryCard(it.r)); continue; }
       const m = it.m;
       const card = document.createElement("article");
       card.className = "meal";
@@ -810,6 +818,7 @@
   function renderSummary() {
     BowelUI.renderSummary($("bowelSummary"), stools);
     renderHydration();
+    renderWeekTrend();
     const rows = stats();
     const good = rows.filter((r) => r.avg >= 3.8).sort((a, b) => b.avg - a.avg);
     const bad = rows.filter((r) => r.avg <= 2.6).sort((a, b) => a.avg - b.avg);
@@ -868,7 +877,7 @@
 
   $("exportBtn").addEventListener("click", () => {
     const legacy = S.getCheckins();
-    const data = { meals, diary, diets, bowel: stools, drinks, waterGoalMl: settings.waterGoalMl, ...(legacy.length ? { checkinsLegacy: legacy } : {}), exportedAt: new Date().toISOString() };
+    const data = { meals, diary, diets, bowel: stools, drinks, waterGoalMl: settings.waterGoalMl, moodSleep: moodRecs, ...(legacy.length ? { checkinsLegacy: legacy } : {}), exportedAt: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)],
       { type: "application/json" });
     const a = document.createElement("a");
@@ -878,9 +887,9 @@
     URL.revokeObjectURL(a.href);
   });
   $("wipeBtn").addEventListener("click", () => {
-    if (!confirm("¿Borrar TODOS los datos locales (comidas, bebidas, diario, deposiciones, planes, fotos)?")) return;
-    S.wipe(); meals = []; diary = []; diets = []; stools = []; drinks = [];
-    persist(); S.setDiaryMigrated(); afterDiaryChange(); renderDrinkQuick();
+    if (!confirm("¿Borrar TODOS los datos locales (comidas, bebidas, diario, deposiciones, ánimo y sueño, planes, fotos)?")) return;
+    S.wipe(); meals = []; diary = []; diets = []; stools = []; drinks = []; moodRecs = [];
+    persist(); S.setDiaryMigrated(); afterDiaryChange(); renderDrinkQuick(); afterMoodChange();
     toast("Datos locales borrados");
   });
 
@@ -956,6 +965,10 @@
   function renderDietSignals() {
     const sig = Diet.buildSignals(meals, feels());
     const box = $("dietSignals");
+    const wb = dietWellbeing();
+    const wbHtml = wb ? "<p class='hint mood-context'>😴 Se tendrá en cuenta tu ánimo y sueño de la semana" +
+      (wb.avgSleepH != null ? " (sueño medio " + esc(MS.fmtH(wb.avgSleepH)) + ")" : "") + "." +
+      (wb.factors && wb.factors.length ? " " + esc(MS.factorsText(moodFactors())) : "") + "</p>" : "";
     if (!sig.mealsWithData) {
       box.innerHTML = "<p class='hint'>Aún no hay comidas con entradas del diario: se propondrá una " +
         "<strong>dieta equilibrada y ligera</strong>. Cuantos más registros, más afinado el plan.</p>";
@@ -975,6 +988,7 @@
       box.insertAdjacentHTML("beforeend", "<p class='hint'>💩 Señal digestiva (14 días): " + bw.total +
         " deposición(es), " + abn + " fuera de lo normal (estreñimiento o diarrea).</p>");
     }
+    box.insertAdjacentHTML("beforeend", wbHtml);
     return sig;
   }
 
@@ -996,7 +1010,7 @@
   $("dietLocalBtn").addEventListener("click", () => {
     const sig = renderDietSignals();
     const scope = dietScope(), slot = $("dietSlot").value;
-    savePlan(Diet.localPlan(scope, slot, sig.avoid), scope, slot, "local", "Plan local (sin IA)", sig);
+    savePlan(Diet.localPlan(scope, slot, sig.avoid, dietWellbeing()), scope, slot, "local", "Plan local (sin IA)", sig);
     $("dietStatus").classList.add("hidden");
     toast("Plan local guardado");
   });
@@ -1008,7 +1022,7 @@
     const prov = P.active(settings);
     box.classList.remove("hidden");
     if (!prov || !prov.implemented || !prov.planDiet) {
-      savePlan(Diet.localPlan(scope, slot, sig.avoid), scope, slot, "local", "Plan local (sin IA)", sig);
+      savePlan(Diet.localPlan(scope, slot, sig.avoid, dietWellbeing()), scope, slot, "local", "Plan local (sin IA)", sig);
       box.innerHTML = (prov ? esc(prov.label) + " aún no implementado" : "Sin clave IA") +
         ": se ha generado un <strong>plan local</strong> con las mismas exclusiones. " +
         "<span class='hint'>Configura Claude o Groq en Ajustes para un plan con IA.</span>";
@@ -1018,7 +1032,7 @@
     btn.disabled = true;
     box.innerHTML = "⏳ Pidiendo dieta a " + esc(prov.label) + "…";
     try {
-      const plan = await prov.planDiet({ scope, slot, context: Diet.contextPayload(sig, Bowel.contextPayload(stools, Date.now())) },
+      const plan = await prov.planDiet({ scope, slot, context: Diet.contextPayload(sig, Bowel.contextPayload(stools, Date.now()), dietWellbeing()) },
         settings.keys[prov.id], settings.model, settings);
       savePlan(plan, scope, slot, prov.id, prov.label, sig);
       box.classList.add("hidden");
@@ -1197,6 +1211,266 @@
     onChange: afterBowelChange
   });
 
+  // ---------- ánimo y sueño ----------
+  let moodDay = MS.dayKey(Date.now());
+
+  function badDaySet() {
+    return new Set(diary.filter((e) => Diary.isBadEntry(e)).map((e) => Diary.dayKey(e.at)));
+  }
+  function moodFactors() { return MS.factors(moodRecs, badDaySet()); }
+  /** Contexto de ánimo y sueño de la última semana para la dieta (null si no hay registros). */
+  function dietWellbeing() {
+    const w = MS.dietContext(moodRecs, Date.now());
+    if (!w) return null;
+    return { ...w, factors: moodFactors().map((f) => ({ id: f.id, badWith: f.badWith, withN: f.withN })) };
+  }
+
+  function dayLabel(key) {
+    const today = MS.dayKey(Date.now());
+    if (key === today) return "Hoy";
+    if (key === MS.shiftDay(today, -1)) return "Ayer";
+    return new Date(MS.dayStart(key)).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" });
+  }
+
+  function saveMood(day, patch) {
+    moodRecs = MS.upsert(moodRecs, day, patch, Date.now(), () => S.uid());
+    S.saveMoodSleep(moodRecs);
+    afterMoodChange();
+  }
+
+  function afterMoodChange() {
+    renderMoodCard();
+    if ($("moodModal").open) renderMoodModal();
+    renderTimeline(); renderSummary(); renderDiet();
+    Home.refresh();
+  }
+
+  function buildScale(el, items, aria) {
+    el.innerHTML = "";
+    for (const it of items) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.v = String(it.v);
+      b.title = it.label;
+      b.setAttribute("aria-label", aria + " " + it.v + " de 5: " + it.label);
+      b.setAttribute("aria-pressed", "false");
+      b.innerHTML = it.emoji + "<em>" + it.v + "</em>";
+      el.appendChild(b);
+    }
+  }
+  function markScale(el, value) {
+    el.querySelectorAll("button").forEach((b) => {
+      const on = Number(b.dataset.v) === value;
+      b.classList.toggle("sel", on);
+      b.setAttribute("aria-pressed", String(on));
+    });
+  }
+
+  function renderMoodCard() {
+    const r = MS.forDay(moodRecs, MS.dayKey(Date.now()));
+    markScale($("moodQuick"), r ? r.mood : null);
+    const bits = [];
+    if (r && r.mood) bits.push("Hoy: " + MS.MOODS[r.mood - 1].emoji + " " + MS.MOODS[r.mood - 1].label);
+    if (r && r.sleep && r.sleep.hours != null) bits.push("sueño " + MS.fmtH(r.sleep.hours) + (r.sleep.quality ? " · calidad " + r.sleep.quality + "/5" : ""));
+    else if (r && r.sleep && r.sleep.quality) bits.push("calidad de sueño " + r.sleep.quality + "/5");
+    if (r && r.tags.length) bits.push(r.tags.map((t) => MS.tagLabel(t).toLowerCase()).join(", "));
+    $("moodQuickStatus").textContent = bits.length ? bits.join(" · ") : "¿Cómo estás hoy? Toca una carita.";
+  }
+
+  function moodModalRecord() { return MS.forDay(moodRecs, moodDay); }
+
+  function renderMoodModal() {
+    const r = moodModalRecord();
+    const today = MS.dayKey(Date.now());
+    const opts = [["today", today], ["yesterday", MS.shiftDay(today, -1)]];
+    if (moodDay !== opts[0][1] && moodDay !== opts[1][1]) opts.push(["other", moodDay]);
+    const pick = $("moodDayPick");
+    pick.innerHTML = "";
+    for (const [, key] of opts) {
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "radio"; input.name = "moodDay"; input.value = key; input.checked = key === moodDay;
+      input.addEventListener("change", () => { moodDay = key; renderMoodModal(); });
+      const span = document.createElement("span");
+      span.textContent = dayLabel(key);
+      label.append(input, document.createTextNode(" "), span);
+      pick.appendChild(label);
+    }
+    markScale($("moodLevel"), r ? r.mood : null);
+    $("moodTags").querySelectorAll("button").forEach((b) => {
+      b.setAttribute("aria-pressed", String(!!(r && r.tags.includes(b.dataset.tag))));
+    });
+    const hours = r && r.sleep ? r.sleep.hours : null;
+    $("sleepPresets").querySelectorAll("button").forEach((b) => {
+      b.setAttribute("aria-pressed", String(hours != null && Number(b.dataset.h) === hours));
+    });
+    $("sleepHoursOut").textContent = hours != null ? MS.fmtH(hours) : "– h";
+    markScale($("sleepQuality"), r && r.sleep ? r.sleep.quality : null);
+    $("moodDelete").disabled = !r;
+  }
+
+  function sleepPatch(change) {
+    const r = moodModalRecord();
+    const cur = r && r.sleep ? r.sleep : { hours: null, quality: null };
+    return { sleep: { ...cur, ...change } };
+  }
+  function savedNote() {
+    const d = new Date();
+    $("moodSaved").textContent = "Guardado ✔ " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+  function modalSave(patch) { saveMood(moodDay, patch); savedNote(); }
+
+  function openMood(day) {
+    moodDay = day || MS.dayKey(Date.now());
+    $("moodSaved").textContent = "Se guarda al tocar.";
+    renderMoodModal();
+    if (!$("moodModal").open) {
+      lockScroll();
+      $("moodModal").showModal();
+      $("moodModal").querySelector(".sheet-body").scrollTop = 0;
+    }
+  }
+
+  buildScale($("moodQuick"), MS.MOODS, "Ánimo");
+  buildScale($("moodLevel"), MS.MOODS, "Ánimo");
+  buildScale($("sleepQuality"), MS.SLEEP_QUALITY, "Calidad del sueño");
+  $("moodTags").innerHTML = MS.TAGS.map((t) =>
+    "<button type='button' class='chip' data-tag='" + t.id + "' aria-pressed='false'>" + t.emoji + " " + esc(t.label) + "</button>").join("");
+  $("sleepPresets").innerHTML = MS.SLEEP_PRESETS.map((h) =>
+    "<button type='button' class='chip' data-h='" + h + "' aria-pressed='false'>" + h + " h</button>").join("");
+
+  $("moodQuick").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    const today = MS.dayKey(Date.now());
+    const r = MS.forDay(moodRecs, today);
+    const v = Number(b.dataset.v);
+    saveMood(today, { mood: r && r.mood === v ? null : v });
+    toast(r && r.mood === v ? "Ánimo quitado" : "Ánimo guardado ✔ " + MS.MOODS[v - 1].emoji);
+  }));
+  $("moodLevel").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    const r = moodModalRecord();
+    const v = Number(b.dataset.v);
+    modalSave({ mood: r && r.mood === v ? null : v });
+  }));
+  $("moodTags").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    modalSave({ tags: MS.toggleTag(moodModalRecord(), b.dataset.tag) });
+  }));
+  $("sleepPresets").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    const r = moodModalRecord();
+    const h = Number(b.dataset.h);
+    modalSave(sleepPatch({ hours: r && r.sleep && r.sleep.hours === h ? null : h }));
+  }));
+  function stepSleep(delta) {
+    const r = moodModalRecord();
+    const cur = r && r.sleep && r.sleep.hours != null ? r.sleep.hours : 7;
+    modalSave(sleepPatch({ hours: MS.validHours(Math.max(0.5, Math.min(MS.MAX_HOURS, cur + delta))) }));
+  }
+  $("sleepMinus").addEventListener("click", () => stepSleep(-0.5));
+  $("sleepPlus").addEventListener("click", () => stepSleep(0.5));
+  $("sleepQuality").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    const r = moodModalRecord();
+    const v = Number(b.dataset.v);
+    modalSave(sleepPatch({ quality: r && r.sleep && r.sleep.quality === v ? null : v }));
+  }));
+  $("moodDone").addEventListener("click", () => $("moodModal").close());
+  $("moodDelete").addEventListener("click", () => {
+    if (!confirm("¿Borrar el ánimo y el sueño de este día?")) return;
+    moodRecs = MS.remove(moodRecs, moodDay);
+    S.saveMoodSleep(moodRecs);
+    afterMoodChange();
+    $("moodModal").close();
+    toast("Registro borrado");
+  });
+  $("moodModal").addEventListener("close", unlockScroll);
+  $("moodOpenBtn").addEventListener("click", () => openMood());
+
+  function moodEntryCard(r) {
+    const card = document.createElement("article");
+    card.className = "meal mood-entry";
+    card.id = "mood-" + r.day;
+    const m = r.mood ? MS.MOODS[r.mood - 1] : null;
+    const pills = r.tags.map((t) => {
+      const tag = MS.TAGS.find((x) => x.id === t);
+      return "<span class='pill " + (tag && tag.tone === "pos" ? "mood-pos" : "src-sym") + "'>" + esc(tag ? tag.emoji + " " + tag.label : t) + "</span>";
+    }).join("") + (r.sleep ? "<span class='pill mood-sleep'>😴 " +
+      (r.sleep.hours != null ? esc(MS.fmtH(r.sleep.hours)) : "sueño") +
+      (r.sleep.quality ? " · calidad " + r.sleep.quality + "/5" : "") + "</span>" : "");
+    card.innerHTML =
+      "<header class='meal-head'><span class='diary-icon' aria-hidden='true'>" + (m ? m.emoji : "😴") + "</span>" +
+      "<div class='meal-title'><strong>Ánimo y sueño</strong>" +
+      "<time datetime='" + esc(r.day) + "'>" + esc(dayLabel(r.day)) + "</time></div>" +
+      (m ? "<span class='diary-level'>" + esc(m.label) + " <span class='score'>" + r.mood + "/5</span></span>" : "") +
+      "</header>" + (pills ? "<div class='pills'>" + pills + "</div>" : "");
+    const row = document.createElement("div");
+    row.className = "row";
+    const b1 = document.createElement("button");
+    b1.className = "btn small ghost"; b1.textContent = "✏️ Editar";
+    b1.addEventListener("click", () => openMood(r.day));
+    const b2 = document.createElement("button");
+    b2.className = "btn small ghost"; b2.textContent = "Borrar";
+    b2.addEventListener("click", () => {
+      if (!confirm("¿Borrar el ánimo y el sueño de este día?")) return;
+      moodRecs = MS.remove(moodRecs, r.day);
+      S.saveMoodSleep(moodRecs);
+      afterMoodChange();
+    });
+    row.append(b1, b2);
+    card.appendChild(row);
+    return card;
+  }
+
+  function trendDelta(d, unit) {
+    if (d == null || d === 0) return "";
+    return " <span class='trend-delta " + (d > 0 ? "is-up" : "is-down") + "'>" + (d > 0 ? "▲ +" : "▼ ") +
+      String(d).replace(".", ",") + (unit || "") + "</span>";
+  }
+
+  function renderWeekTrend() {
+    const box = $("weekTrend");
+    const w = MS.weekTrend(moodRecs, Date.now());
+    if (!w.logged) {
+      box.innerHTML = "<h3>🌤 Tu semana · ánimo y sueño</h3>" +
+        "<p class='hint'>Aún no hay registros esta semana. Apunta tu ánimo y cuántas horas duermes para ver la tendencia " +
+        "y si coincide con tus molestias.</p>" +
+        "<div class='row'><button type='button' class='btn small primary' data-act='mood'>😌 Registrar ánimo y sueño</button></div>";
+      box.querySelector("[data-act='mood']").addEventListener("click", () => openMood());
+      return;
+    }
+    const days = w.rows.map((r) => {
+      const m = r.mood ? MS.MOODS[r.mood - 1] : null;
+      const h = r.hours != null ? Math.max(8, Math.round(r.hours / 10 * 100)) : 0;
+      const wd = new Date(MS.dayStart(r.day)).toLocaleDateString("es-ES", { weekday: "narrow" }).toUpperCase();
+      return "<li class='trend-day" + (r.day === MS.dayKey(Date.now()) ? " is-today" : "") + "'>" +
+        "<span class='trend-mood' title='" + esc(m ? m.label : "Sin ánimo") + "'>" + (m ? m.emoji : "·") + "</span>" +
+        "<span class='trend-bar-wrap' aria-hidden='true'>" +
+        (r.hours != null ? "<span class='trend-bar" + (r.hours < MS.LOW_SLEEP_H ? " is-low" : "") + "' style='height:" + h + "%'></span>" : "") + "</span>" +
+        "<span class='trend-hours'>" + (r.hours != null ? String(r.hours).replace(".", ",") : "–") + "</span>" +
+        "<span class='trend-wd'>" + esc(wd) + "</span></li>";
+    }).join("");
+    const facts = moodFactors();
+    box.innerHTML =
+      "<h3>🌤 Tu semana · ánimo y sueño</h3>" +
+      "<ol class='trend-days' aria-label='Últimos 7 días: ánimo y horas de sueño'>" + days + "</ol>" +
+      "<ul class='plain trend-stats'>" +
+      (w.avgMood != null ? "<li>Ánimo medio <strong>" + String(w.avgMood).replace(".", ",") + "/5</strong>" + trendDelta(w.delta.mood) + "</li>" : "") +
+      (w.avgHours != null ? "<li>Sueño medio <strong>" + esc(MS.fmtH(w.avgHours)) + "</strong>" + trendDelta(w.delta.hours, " h") + "</li>" : "") +
+      (w.avgQuality != null ? "<li>Calidad del sueño <strong>" + String(w.avgQuality).replace(".", ",") + "/5</strong>" + trendDelta(w.delta.quality) + "</li>" : "") +
+      "</ul>" +
+      (w.tags.length ? "<div class='pills'>" + w.tags.slice(0, 5).map((t) => "<span class='pill src-sym'>" + esc(MS.tagLabel(t.id)) + " ×" + t.n + "</span>").join("") + "</div>" : "") +
+      (w.prevLogged ? "" : "<p class='hint'>Los cambios aparecerán cuando tengas también la semana anterior.</p>") +
+      (facts.length ? "<p class='mood-context'>😴 " + facts.map((f) => esc(MS.factorsText([f]))).join("<br>") +
+        "<br>Puede pesar tanto como la comida.</p>" : "") +
+      "<div class='row'><button type='button' class='btn small' data-act='mood'>😌 Registrar hoy</button></div>";
+    box.querySelector("[data-act='mood']").addEventListener("click", () => openMood());
+  }
+
+  Home.registerTile({
+    id: "animo", emoji: "😌", title: "Ánimo y sueño",
+    desc: "Registra tu ánimo diario y la calidad del sueño",
+    onOpen: () => openMood(),
+    records: () => MS.timestamps(moodRecs)
+  });
+
+
   // ---------- init ----------
   document.body.dataset.tab = "home";
   $("reminderEnabled").checked = settings.reminder.enabled;
@@ -1210,6 +1484,8 @@
   renderProviderStatus();
   renderNotifStatus();
   renderDiet();
+  renderMoodCard();
+  renderSummary();
   checkReminder();
   const qs = new URLSearchParams(location.search);
   if (qs.has("diario")) {

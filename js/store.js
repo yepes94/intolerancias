@@ -1,5 +1,5 @@
 /* Intolerancias · js/store.js
- * Persistencia 100% local: localStorage (comidas, diario, ajustes; check-ins antiguos solo lectura)
+ * Persistencia 100% local: localStorage (comidas, diario, ánimo y sueño, ajustes; check-ins antiguos solo lectura)
  * + IndexedDB (fotos a tamaño completo). Sin backend. */
 (function () {
   "use strict";
@@ -13,6 +13,7 @@
   const LS_DIARY_MIGRATED = "intol.diary.migrated.v1";
   const LS_REMINDER = "intol.reminder.v1";
   const LS_BOWEL = "intol.bowel.v1";
+  const LS_MOODSLEEP = "intol.moodsleep.v1";
 
   const IDB_NAME = "intol-photos";
   const IDB_STORE = "photos";
@@ -99,6 +100,8 @@
     saveDiary(d) { save(LS_DIARY, d); },
     diaryMigrated() { return load(LS_DIARY_MIGRATED, false) === true; },
     setDiaryMigrated() { save(LS_DIARY_MIGRATED, true); },
+    getMoodSleep() { return load(LS_MOODSLEEP, []); },
+    saveMoodSleep(r) { save(LS_MOODSLEEP, r); },
     getReminder() { return load(LS_REMINDER, {}); },
     saveReminder(r) { save(LS_REMINDER, r); },
     getBowel() { return load(LS_BOWEL, []); },
@@ -137,6 +140,7 @@
       localStorage.removeItem(LS_DIARY_MIGRATED);
       localStorage.removeItem(LS_REMINDER);
       localStorage.removeItem(LS_BOWEL);
+      localStorage.removeItem(LS_MOODSLEEP);
       try {
         const req = indexedDB.deleteDatabase(IDB_NAME);
         req.onsuccess = req.onerror = () => {};

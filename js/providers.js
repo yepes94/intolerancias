@@ -9,7 +9,7 @@
  *     needsVision: boolean,
  *     analyzeFood(input, apiKey, model) -> Promise<{ ingredients: string[], summary: string, checkinQuestion: string }>
  *     planDiet(input, apiKey, model, settings) -> /api/diet
- *     analyzeDiary({ entry, meals, suspects, bowel }, apiKey, model, settings) -> /api/diary
+ *     analyzeDiary({ entry, meals, suspects, bowel, wellbeing }, apiKey, model, settings) -> /api/diary
  *     ping(apiKey, model) -> Promise<string>   // "ok" o lanza Error explicativo
  *   }
  *
@@ -109,6 +109,7 @@
         meals: payload.meals || [],
         suspects: payload.suspects || [],
         ...(Array.isArray(payload.bowel) && payload.bowel.length ? { bowel: payload.bowel } : {}),
+        ...(payload.wellbeing ? { wellbeing: payload.wellbeing } : {}),
         validIngredients
       }
       : url === DIET_URL
@@ -402,9 +403,9 @@
           }, DIET_URL), "Claude");
         },
 
-        async analyzeDiary({ entry, meals, suspects, bowel }, apiKey, model, settings) {
+        async analyzeDiary({ entry, meals, suspects, bowel, wellbeing }, apiKey, model, settings) {
           return checkDiary(await proxyCall("claude", "Claude", "diary", {
-            apiKey, model, groqModel: settings && settings.groqModel, entry, meals, suspects, bowel
+            apiKey, model, groqModel: settings && settings.groqModel, entry, meals, suspects, bowel, wellbeing
           }, DIARY_URL), "Claude");
         }
       },
@@ -452,9 +453,9 @@
           }, DIET_URL), "Groq");
         },
 
-        async analyzeDiary({ entry, meals, suspects, bowel }, apiKey, _model, settings) {
+        async analyzeDiary({ entry, meals, suspects, bowel, wellbeing }, apiKey, _model, settings) {
           return checkDiary(await proxyCall("groq", "Groq", "diary", {
-            apiKey, groqModel: settings && settings.groqModel, entry, meals, suspects, bowel
+            apiKey, groqModel: settings && settings.groqModel, entry, meals, suspects, bowel, wellbeing
           }, DIARY_URL), "Groq");
         }
       },
