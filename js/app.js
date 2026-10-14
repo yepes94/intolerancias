@@ -8,6 +8,8 @@
   const Diet = window.IntolDiet;
   const Diary = window.IntolDiary;
   const Home = window.IntolHome;
+  const Bowel = window.IntolBowel;
+  const BowelUI = window.IntolBowelUI;
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s)
@@ -17,6 +19,7 @@
   let meals = S.getMeals();
   let diary = S.getDiary();
   let diets = S.getDiets();
+  let stools = Bowel.sanitizeList(S.getBowel());
   let settings = S.getSettings();
   // Los check-ins respondidos del sistema anterior pasan al diario como históricos
   // (una sola vez; la clave antigua no se borra).
@@ -45,9 +48,9 @@
   function fmtDT(ts) {
     return new Date(ts).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   }
-  function persist() { S.saveMeals(meals); S.saveDiary(diary); Home.refresh(); }
+  function persist() { S.saveMeals(meals); S.saveDiary(diary); S.saveBowel(stools); Home.refresh(); }
   function mealById(id) { return meals.find((m) => m.id === id); }
-  function feels() { return Diary.feelings(meals, diary); }
+  function feels() { return Diary.feelings(meals, diary, stools); }
   function showTab(name) {
     const b = document.querySelector('[data-tab="' + name + '"]');
     if (b) b.click();
@@ -434,8 +437,8 @@
 
   async function analyzeEntry(e) {
     const others = diary.filter((x) => x.id !== e.id);
-    const suspects = Diet.buildSignals(meals, Diary.feelings(meals, others)).avoid;
-    const local = () => ({ source: "local", label: "Análisis local", at: Date.now(), ...Diary.localAnalyze(e, meals, suspects) });
+    const suspects = Diet.buildSignals(meals, Diary.feelings(meals, others, stools)).avoid;
+    const local = () => ({ source: "local", label: "Análisis local", at: Date.now(), ...Diary.localAnalyze(e, meals, suspects, stools) });
     const prov = P.active(settings);
     const withMeals = Diary.windowMeals(meals, e.at).length > 0;
     if (!prov || !prov.implemented || !prov.analyzeDiary || !withMeals) {
@@ -445,12 +448,12 @@
     }
     analyzing.add(e.id);
     renderTimeline();
-    const { body, refs } = Diary.payload(e, meals, suspects);
+    const { body, refs } = Diary.payload(e, meals, suspects, stools);
     let analysis;
     try {
       const res = await prov.analyzeDiary(body, settings.keys[prov.id], settings.model, settings);
       analysis = { source: "ia", provider: prov.id, label: prov.label, at: Date.now(), ...Diary.applyRefs(res, refs) };
-      if (Diary.redFlags(e.text)) analysis.urgent = true;
+      if (Diary.redFlags(e.text) || Bowel.windowStools(stools, e.at).some(Bowel.redFlag)) analysis.urgent = true;
     } catch (err) {
       const info = P.describeError(err, prov.label);
       analysis = { ...local(), error: info.title };
@@ -554,15 +557,16 @@
   // ---------- timeline ----------
   async function renderTimeline() {
     const wrap = $("timeline");
-    if (!meals.length && !diary.length) {
+    if (!meals.length && !diary.length && !stools.length) {
       wrap.innerHTML = "<p class='empty'>Aún no hay comidas ni entradas del diario. Registra la primera en la pestaña ＋ Registrar.</p>";
       return;
     }
     wrap.innerHTML = "";
-    const items = meals.map((m) => ({ t: m.createdAt, m })).concat(diary.map((e) => ({ t: e.at, e })))
+    const items = meals.map((m) => ({ t: m.createdAt, m })).concat(diary.map((e) => ({ t: e.at, e })), stools.map((b) => ({ t: b.at, b })))
       .sort((a, b) => b.t - a.t).slice(0, 80);
     for (const it of items) {
       if (it.e) { wrap.appendChild(diaryCard(it.e)); continue; }
+      if (it.b) { wrap.appendChild(BowelUI.card(it.b, deleteStool)); continue; }
       const m = it.m;
       const card = document.createElement("article");
       card.className = "meal";
@@ -685,6 +689,7 @@
   }
 
   function renderSummary() {
+    BowelUI.renderSummary($("bowelSummary"), stools);
     const rows = stats();
     const good = rows.filter((r) => r.avg >= 3.8).sort((a, b) => b.avg - a.avg);
     const bad = rows.filter((r) => r.avg <= 2.6).sort((a, b) => a.avg - b.avg);
@@ -718,7 +723,7 @@
 
   $("exportBtn").addEventListener("click", () => {
     const legacy = S.getCheckins();
-    const data = { meals, diary, diets, ...(legacy.length ? { checkinsLegacy: legacy } : {}), exportedAt: new Date().toISOString() };
+    const data = { meals, diary, diets, bowel: stools, ...(legacy.length ? { checkinsLegacy: legacy } : {}), exportedAt: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)],
       { type: "application/json" });
     const a = document.createElement("a");
@@ -728,8 +733,8 @@
     URL.revokeObjectURL(a.href);
   });
   $("wipeBtn").addEventListener("click", () => {
-    if (!confirm("¿Borrar TODOS los datos locales (comidas, diario, planes, fotos)?")) return;
-    S.wipe(); meals = []; diary = []; diets = [];
+    if (!confirm("¿Borrar TODOS los datos locales (comidas, diario, deposiciones, planes, fotos)?")) return;
+    S.wipe(); meals = []; diary = []; diets = []; stools = [];
     persist(); S.setDiaryMigrated(); afterDiaryChange();
     toast("Datos locales borrados");
   });
@@ -819,6 +824,12 @@
       ).join("") + "</ul><p class='hint'>Coinciden con hinchazón, pesadez, gases o cansancio más que el resto. " +
         "El plan priorizará comidas con energía y poca pesadez.</p>";
     }
+    const bw = Bowel.contextPayload(stools, Date.now());
+    if (bw) {
+      const abn = bw.counts[0] + bw.counts[1] + bw.counts[5] + bw.counts[6];
+      box.insertAdjacentHTML("beforeend", "<p class='hint'>💩 Señal digestiva (14 días): " + bw.total +
+        " deposición(es), " + abn + " fuera de lo normal (estreñimiento o diarrea).</p>");
+    }
     return sig;
   }
 
@@ -862,7 +873,7 @@
     btn.disabled = true;
     box.innerHTML = "⏳ Pidiendo dieta a " + esc(prov.label) + "…";
     try {
-      const plan = await prov.planDiet({ scope, slot, context: Diet.contextPayload(sig) },
+      const plan = await prov.planDiet({ scope, slot, context: Diet.contextPayload(sig, Bowel.contextPayload(stools, Date.now())) },
         settings.keys[prov.id], settings.model, settings);
       savePlan(plan, scope, slot, prov.id, prov.label, sig);
       box.classList.add("hidden");
@@ -1022,6 +1033,23 @@
     desc: "Cuéntalo en el diario y busca qué te ha sentado mal",
     onOpen: () => openDiary(),
     records: () => diary.map((e) => e.at)
+  });
+
+  // ---------- deposiciones (js/features/bowel*.js) ----------
+  function afterBowelChange() {
+    persist();
+    renderTimeline(); renderSummary(); renderDiet();
+    if (window.IntolHome && window.IntolHome.refresh) window.IntolHome.refresh();
+  }
+  function deleteStool(s) {
+    stools = stools.filter((x) => x.id !== s.id);
+    afterBowelChange();
+  }
+  BowelUI.init({
+    getStools: () => stools,
+    setStools: (list) => { stools = list; },
+    toast, fmtDT, lockScroll, onClose: unlockScroll,
+    onChange: afterBowelChange
   });
 
   // ---------- init ----------

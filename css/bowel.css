@@ -1,0 +1,50 @@
+/* ---- deposiciones (escala de Bristol) · js/features/bowel*.js ---- */
+.bw-art { color: light-dark(#7a4a2b, #c08a62); flex: none; }
+.bw-art .bw-crack { fill: none; stroke: var(--surface); stroke-width: 2; stroke-linecap: round; }
+.bw-art[data-type="1"], .bw-art[data-type="2"] { color: light-dark(#4d2e1b, #a8734f); }
+.bw-art[data-type="5"] { color: light-dark(#b27a52, #d4a37c); }
+.bw-art[data-type="6"], .bw-art[data-type="7"] { color: light-dark(#a8761f, #d8a53f); }
+
+.bw-types { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+.bw-type {
+  position: relative; display: grid; justify-items: start; gap: 0.15rem; min-block-size: 44px;
+  padding: 0.65rem 0.7rem; border: 2px solid transparent; border-radius: var(--radius-m);
+  background: var(--tile); text-align: start; cursor: pointer;
+}
+.bw-type:last-child { grid-column: 1 / -1; }
+.bw-type-n { position: absolute; inset-block-start: 0.5rem; inset-inline-end: 0.7rem; font-weight: 800; color: var(--muted); }
+.bw-type-name { font-weight: 700; line-height: 1.2; }
+.bw-type-cat { font-size: 0.8rem; color: var(--muted); }
+.bw-type[aria-pressed="true"] { border-color: var(--ink); background: var(--field); }
+.bw-type[data-cat="normal"] .bw-type-cat { color: var(--good); font-weight: 700; }
+.bw-type[data-cat="diarrhea"] .bw-type-cat, .bw-type[data-cat="constipation"] .bw-type-cat { color: var(--bad); }
+
+.bw-explain {
+  margin: 0.75rem 0; padding: 0.7rem 0.9rem; border-radius: var(--radius-s);
+  background: var(--brand-subtle); min-block-size: 3.4em;
+}
+.bw-explain strong { display: block; }
+.bw-flag[data-flag="blood"][aria-pressed="true"] { background: var(--bad); color: #fff; }
+.bw-alert {
+  margin: 0.5rem 0; padding: 0.7rem 0.9rem; border-radius: var(--radius-s);
+  background: var(--bad-subtle); color: var(--ink); border: 1px solid var(--bad);
+}
+.bw-alert.hidden { display: none; }
+
+.bw-card-art { display: grid; place-items: center; inline-size: 56px; }
+.bw-card-desc { margin: 0.4rem 0; }
+.bw-cat { display: inline-block; padding: 0.1rem 0.6rem; border-radius: 999px; font-size: 0.85rem; font-weight: 700; background: var(--sunken); }
+.bw-cat[data-tone="good"] { background: var(--sage-subtle); }
+.bw-cat[data-tone="warn"] { background: var(--bad-subtle); color: var(--bad); }
+.bw-cat[data-tone="mid"] { background: var(--accent-subtle); }
+
+.bw-bars { list-style: none; margin: 0.5rem 0; padding: 0; display: grid; gap: 0.35rem; }
+.bw-bar { display: grid; grid-template-columns: 4.2rem minmax(0, 1fr) 2rem; align-items: center; gap: 0.5rem; }
+.bw-bar-label { display: flex; align-items: center; gap: 0.3rem; }
+.bw-bar-n { font-weight: 800; color: var(--muted); }
+.bw-bar-track { block-size: 0.8rem; border-radius: 999px; background: var(--sunken); overflow: hidden; }
+.bw-bar-fill { display: block; block-size: 100%; border-radius: inherit; background: var(--accent); }
+.bw-bar[data-cat="normal"] .bw-bar-fill { background: var(--good); }
+.bw-bar[data-cat="diarrhea"] .bw-bar-fill, .bw-bar[data-cat="constipation"] .bw-bar-fill { background: var(--bad); }
+.bw-bar-count { text-align: end; font-variant-numeric: tabular-nums; font-weight: 700; }
+.bw-split { margin: 0.4rem 0; font-weight: 700; }

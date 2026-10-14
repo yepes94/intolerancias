@@ -16,7 +16,7 @@
   const SLOT_LABELS = { desayuno: "Desayuno", comida: "Comida", merienda: "Merienda", cena: "Cena" };
 
   // Síntomas que cuentan como "pesadez/malestar" para buscar señales.
-  const TARGET_SYMPTOMS = ["hinchazón", "pesadez", "gases", "cansancio", "dolor abdominal", "náusea", "acidez", "diarrea"];
+  const TARGET_SYMPTOMS = ["hinchazón", "pesadez", "gases", "cansancio", "dolor abdominal", "náusea", "acidez", "diarrea", "estreñimiento"];
 
   const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -92,7 +92,7 @@
       }
     }
     suspects.sort((x, y) => y.rate - x.rate || y.n - x.n);
-    const allDone = uniqueEntries(checkins.filter((c) => c.doneAt && c.feeling != null));
+    const allDone = uniqueEntries(checkins.filter((c) => c.doneAt && c.feeling != null && !c.bowel));
     const recent = meals.slice(0, 15).map((m) => {
       const rel = doneFor(checkins, m.id);
       return {
@@ -113,8 +113,9 @@
   }
 
   /** Lo que viaja al proxy: solo el resumen, sin fotos ni ids. */
-  function contextPayload(sig) {
+  function contextPayload(sig, bowel) {
     return {
+      ...(bowel ? { bowel } : {}),
       avoid: sig.avoid,
       suspects: sig.suspects.map((s) => ({ id: s.id, n: s.n, bad: s.bad, symptoms: s.symptoms })),
       recent: sig.recent,
@@ -228,7 +229,7 @@
   /** Bienestar en registros enlazados al plan vs. registros sin plan
    *  (registros = Diary.feelings o check-ins antiguos, mismo formato). */
   function compare(plan, meals, checkins) {
-    const done = checkins.filter((c) => c.doneAt && c.feeling != null);
+    const done = checkins.filter((c) => c.doneAt && c.feeling != null && !c.bowel);
     const anyDiet = (c) => !!c.dietId || !!(c.mealId && (meals.find((x) => x.id === c.mealId) || {}).dietId);
     const key = (c) => c.entryId || c.id;
     const withIds = new Set(done.filter((c) => linkedTo(plan, c, meals)).map(key));

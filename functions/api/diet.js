@@ -11,7 +11,8 @@
  *     scope: "day"|"meal",
  *     slot: "desayuno"|"comida"|"merienda"|"cena" (solo scope "meal"),
  *     context: { avoid: ["gluten", …], suspects: [{ id, n, bad, symptoms }],
- *                recent: [{ d, ings, comps, f, s }], baseline },
+ *                recent: [{ d, ings, comps, f, s }], baseline,
+ *                bowel: { days, counts: [n por tipo de Bristol 1-7], pain, urgency, blood } (opcional) },
  *     validIngredients: ["lactosa", …] (opcional) }
  *
  *   200 { ok: true, provider, action: "plan", result } con result =
@@ -83,7 +84,17 @@ function sanitizeContext(raw, validKeys) {
     }))
     : [];
   const baseline = c.baseline != null && isFinite(Number(c.baseline)) ? Math.round(Number(c.baseline) * 10) / 10 : null;
-  return { avoid, suspects, recent, baseline };
+  const bw = c.bowel && typeof c.bowel === "object" ? c.bowel : null;
+  const bowel = bw && Array.isArray(bw.counts) && bw.counts.length === 7
+    ? {
+      days: Math.max(1, Math.min(90, Number(bw.days) || 14)),
+      counts: bw.counts.map((n) => Math.max(0, Math.min(999, Math.round(Number(n) || 0)))),
+      pain: Math.max(0, Math.min(999, Number(bw.pain) || 0)),
+      urgency: Math.max(0, Math.min(999, Number(bw.urgency) || 0)),
+      blood: Math.max(0, Math.min(999, Number(bw.blood) || 0)),
+    }
+    : null;
+  return { avoid, suspects, recent, baseline, bowel };
 }
 
 function contextText(ctx) {
@@ -95,6 +106,13 @@ function contextText(ctx) {
     lines.push("Sin senales claras de ningun componente.");
   }
   if (ctx.baseline != null) lines.push(`Nivel medio de bienestar en check-ins: ${ctx.baseline}/5.`);
+  if (ctx.bowel && ctx.bowel.counts.some((n) => n > 0)) {
+    const b = ctx.bowel;
+    lines.push(`Senal digestiva, deposiciones de los ultimos ${b.days} dias por tipo de Bristol (tipo 1-2 estrenimiento, 3-4 normal, 5 blanda, 6-7 diarrea): ` +
+      b.counts.map((n, i) => `tipo ${i + 1}: ${n}`).join(", ") +
+      `. Con dolor: ${b.pain}, con urgencia: ${b.urgency}, con sangre: ${b.blood}. ` +
+      "Si predominan los tipos 6-7 prioriza comidas astringentes y de digestion suave; si predominan 1-2, mas fibra e hidratacion; sin diagnosticar.");
+  }
   if (ctx.recent.length) {
     lines.push("Comidas recientes (descripcion | componentes | nivel 1-5 | sintomas):");
     for (const m of ctx.recent) {
