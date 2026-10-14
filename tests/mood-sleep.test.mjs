@@ -191,7 +191,7 @@ console.log("7. Integración en la app (comprobaciones estáticas de js/app.js e
   ok(/moodRecs = \[\];/.test(app) && /S\.wipe\(\)/.test(app), "«Borrar todo» vacía el estado en memoria y el almacén");
   ok(/MS\.dayStart\(r\.day\)/.test(app) && /moodEntryCard/.test(app), "el timeline pinta los registros de ánimo y sueño");
   ok(/renderWeekTrend/.test(app) && /id="weekTrend"/.test(html), "el Resumen muestra la tendencia semanal");
-  ok(/Diary\.payload\(e, meals, suspects, stools, wellbeing\)/.test(app) && /Diet\.contextPayload\(sig, Bowel\.contextPayload\(stools, Date\.now\(\)\), dietWellbeing\(\)\)/.test(app), "diario y dieta reciben el contexto");
+  ok(/Diary\.payload\(e, all, suspects, stools, wellbeing\)/.test(app) && /Diet\.contextPayload\(sig, Bowel\.contextPayload\(stools, Date\.now\(\)\), dietWellbeing\(\)\)/.test(app), "diario y dieta reciben el contexto");
   ok(/Home\.registerTile\(\{\s*id: "animo"[\s\S]*?onOpen: \(\) => openMood\(\)/.test(app), "se engancha al Home como tile «Ánimo y sueño» (IntolHome.registerTile, mismo id que el placeholder)");
   ok(html.indexOf("js/features/mood-sleep.js") > html.indexOf("js/diary.js") && html.indexOf("js/features/mood-sleep.js") < html.indexOf("js/app.js"), "mood-sleep.js se carga antes de app.js");
 }
