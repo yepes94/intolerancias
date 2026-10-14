@@ -129,7 +129,7 @@
   }
 
   /** Registros por (entrada, comida) con el formato que esperan Resumen y Dieta. */
-  function feelings(meals, entries) {
+  function feelings(meals, entries, stools) {
     const out = [];
     for (const e of entries) {
       const base = {
@@ -140,6 +140,8 @@
       if (!ms.length) out.push({ ...base, mealId: null });
       for (const m of ms) out.push({ ...base, mealId: m.id });
     }
+    const B = window.IntolBowel;
+    if (B && stools && stools.length) out.push(...B.feelingRecords(stools, meals));
     return out;
   }
 
@@ -160,7 +162,7 @@
   }
 
   /** Lo que viaja al proxy: texto, hora, nivel y comidas resumidas. Sin fotos ni ids. */
-  function payload(e, meals, suspects) {
+  function payload(e, meals, suspects, stools) {
     const ms = windowMeals(meals, e.at).slice(0, MAX_MEALS);
     const refs = {};
     const list = ms.map((m, i) => {
@@ -178,11 +180,13 @@
         summary: clip(a.summary, 300)
       };
     });
+    const bowel = window.IntolBowel && stools ? window.IntolBowel.payload(stools, e.at) : [];
     return {
       body: {
         entry: { text: clip(e.text, 1500), time: hhmm(e.at), level: validLevel(e.level), symptoms: (e.symptoms || []).slice(0, 8) },
         meals: list,
-        suspects: (suspects || []).slice(0, 6)
+        suspects: (suspects || []).slice(0, 6),
+        ...(bowel.length ? { bowel } : {})
       },
       refs
     };
@@ -201,8 +205,10 @@
   }
 
   /** Causas posibles sin IA: componentes de cada comida × ventana típica × síntomas. */
-  function localAnalyze(e, meals, suspects) {
-    const syms = e.symptoms || [];
+  function localAnalyze(e, meals, suspects, stools) {
+    const B = window.IntolBowel;
+    const win = B && stools ? B.windowStools(stools, e.at) : [];
+    const syms = [...new Set((e.symptoms || []).concat(...win.map((s) => B.symptomsOf(s))))];
     const hinted = new Set(syms.flatMap((s) => SYMPTOM_HINTS[s] || []));
     const known = new Set(suspects || []);
     const W = D().ONSET_WINDOWS;
@@ -249,13 +255,16 @@
         clip(m0.description || (m0.analysis && m0.analysis.food) || "comida", 60) + "»" +
         (top.length > 1 ? " (y " + (top.length - 1) + " comida(s) más)" : "") + ".";
     }
+    const bowelLine = win.length ? B.describeWindow(stools, e.at) : "";
+    const blood = win.some((s) => B.redFlag(s));
     return {
-      summary,
+      summary: summary + (bowelLine ? " Señal digestiva: " + bowelLine : ""),
       causes: top,
-      advice: top.length
+      advice: (top.length
         ? "Si se repite con lo mismo, prueba unos días sin ese componente y apunta cómo te sientes."
-        : "Sigue anotando comidas y cómo te sientes: con más registros se ven mejor las coincidencias.",
-      urgent: redFlags(e.text)
+        : "Sigue anotando comidas y cómo te sientes: con más registros se ven mejor las coincidencias.") +
+        (blood ? " " + B.BLOOD_ADVICE : ""),
+      urgent: redFlags(e.text) || blood
     };
   }
 

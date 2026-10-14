@@ -11,6 +11,7 @@
   const LS_DIARY = "intol.diary.v1";
   const LS_DIARY_MIGRATED = "intol.diary.migrated.v1";
   const LS_REMINDER = "intol.reminder.v1";
+  const LS_BOWEL = "intol.bowel.v1";
 
   const IDB_NAME = "intol-photos";
   const IDB_STORE = "photos";
@@ -99,6 +100,8 @@
     setDiaryMigrated() { save(LS_DIARY_MIGRATED, true); },
     getReminder() { return load(LS_REMINDER, {}); },
     saveReminder(r) { save(LS_REMINDER, r); },
+    getBowel() { return load(LS_BOWEL, []); },
+    saveBowel(b) { save(LS_BOWEL, b); },
     getDiets() { return load(LS_DIETS, []); },
     saveDiets(d) { save(LS_DIETS, d); },
     getSettings() {
@@ -126,6 +129,7 @@
       localStorage.removeItem(LS_DIARY);
       localStorage.removeItem(LS_DIARY_MIGRATED);
       localStorage.removeItem(LS_REMINDER);
+      localStorage.removeItem(LS_BOWEL);
       try {
         const req = indexedDB.deleteDatabase(IDB_NAME);
         req.onsuccess = req.onerror = () => {};

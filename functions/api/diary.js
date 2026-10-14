@@ -11,6 +11,7 @@
  *     groqModel: "<modelo groq texto, opcional>",
  *     entry: { text, time: "HH:MM", level: 1-5|null, symptoms: ["hinchazón", …] },
  *     meals: [{ ref: "m1", h: 3.5, time: "HH:MM", d, food, comps, ings, summary }],
+ *     bowel: [{ h, type: 1-7 (Bristol), pain, urgency, blood }] (opcional: deposiciones de las 24 h anteriores),
  *     suspects: ["gluten", …] (opcional: componentes que ya coincidieron con molestias),
  *     validIngredients: ["lactosa", …] (opcional) }
  *
@@ -88,7 +89,15 @@ function sanitize(body, validKeys) {
       summary: clip(m.summary, LIMITS.summaryIn),
     }));
   const suspects = Array.isArray(body && body.suspects) ? [...new Set(body.suspects.filter(keyOk))].slice(0, 6) : [];
-  return { entry, meals, suspects };
+  const bowel = (Array.isArray(body && body.bowel) ? body.bowel : [])
+    .filter((b) => b && Number.isInteger(Number(b.type)) && Number(b.type) >= 1 && Number(b.type) <= 7)
+    .slice(0, 8)
+    .map((b) => ({
+      h: isFinite(Number(b.h)) ? Math.max(0, Math.min(48, Math.round(Number(b.h) * 10) / 10)) : null,
+      type: Number(b.type),
+      pain: b.pain === true, urgency: b.urgency === true, blood: b.blood === true,
+    }));
+  return { entry, meals, suspects, bowel };
 }
 
 function windowsText(validKeys) {
@@ -96,7 +105,7 @@ function windowsText(validKeys) {
 }
 
 function diaryPrompt(input, validKeys) {
-  const { entry, meals, suspects } = input;
+  const { entry, meals, suspects, bowel } = input;
   const lines = [
     "Eres un asistente de diario alimentario personal. " +
     "El usuario cuenta como se siente; cruzalo con lo que comio en las 24 h anteriores e identifica " +
@@ -119,6 +128,13 @@ function diaryPrompt(input, validKeys) {
       (entry.symptoms.length ? ` Sintomas detectados: ${entry.symptoms.join(", ")}.` : ""),
   ];
   if (suspects.length) lines.push("Componentes que ya coincidieron con molestias otras veces: " + suspects.join(", ") + ".");
+  if (bowel.length) {
+    lines.push("Deposiciones de las 24 h anteriores (escala de Bristol 1-7: 1-2 estrenimiento, 3-4 normal, 5 blanda, 6-7 diarrea) " +
+      "como senal digestiva: " + bowel.map((b) => `tipo ${b.type}${b.h == null ? "" : " hace " + b.h + " h"}` +
+      [b.pain ? "dolor" : "", b.urgency ? "urgencia" : "", b.blood ? "sangre" : ""].filter(Boolean).map((x) => " +" + x).join("")).join("; ") + ". " +
+      (bowel.some((b) => b.blood) ? "Hay sangre en heces: pon urgent a true y recomienda consultar con un profesional sanitario. " : "") +
+      "Usalas para reforzar o descartar causas (diarrea o estrenimiento tras un componente), sin diagnosticar.");
+  }
   if (meals.length) {
     lines.push("Comidas de las 24 h anteriores (ref | hace cuanto | descripcion | alimento detectado | componentes | claves | analisis):");
     for (const m of meals) {
