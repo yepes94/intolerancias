@@ -4,40 +4,43 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
-  <meta name="theme-color" content="#f7f4ec" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#1c1a16" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f4f0e7" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#121210" media="(prefers-color-scheme: dark)" />
+  <script>try{var t=localStorage.getItem("intol.theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
   <meta name="description" content="Intolerancias — diario personal de comidas y bienestar. 100% local, sin cuentas." />
   <title>Intolerancias · Diario de comidas y bienestar</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌿</text></svg>" />
+  <link rel="preload" href="fonts/nunito-latin-wght.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/components.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="content-grid">
-  <header class="app-header full-width">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true">🌿</span>
-      <div>
-        <h1>Intolerancias</h1>
-        <p class="tagline">Qué como → cómo me sienta</p>
-      </div>
-    </div>
-    <nav class="tabs" aria-label="Secciones">
-      <button type="button" class="tab active" data-tab="registrar" aria-current="page" aria-controls="tab-registrar">
-        <span class="tab-icon" aria-hidden="true">✍️</span><span class="tab-label">Registrar</span>
-      </button>
-      <button type="button" class="tab" data-tab="timeline" aria-controls="tab-timeline">
-        <span class="tab-icon" aria-hidden="true">🕘</span><span class="tab-label">Timeline</span>
-      </button>
-      <button type="button" class="tab" data-tab="dieta" aria-controls="tab-dieta">
-        <span class="tab-icon" aria-hidden="true">🥗</span><span class="tab-label">Dieta</span>
-      </button>
-      <button type="button" class="tab" data-tab="resumen" aria-controls="tab-resumen">
-        <span class="tab-icon" aria-hidden="true">📊</span><span class="tab-label">Resumen</span>
-      </button>
-      <button type="button" class="tab" data-tab="ajustes" aria-controls="tab-ajustes">
-        <span class="tab-icon" aria-hidden="true">⚙️</span><span class="tab-label">Ajustes</span>
-      </button>
-    </nav>
+<body>
+  <header class="app-header">
+    <span class="brand-mark" aria-hidden="true">🌿</span>
+    <span class="brand-name">Intolerancias</span>
   </header>
+
+  <nav class="tabbar" aria-label="Secciones">
+    <button type="button" class="tab active" data-tab="home" aria-current="page" aria-controls="tab-home">
+      <span class="tab-icon" aria-hidden="true">🏠</span><span class="tab-label">Inicio</span>
+    </button>
+    <button type="button" class="tab" data-tab="registrar" aria-controls="tab-registrar">
+      <span class="tab-icon" aria-hidden="true">✍️</span><span class="tab-label">Registrar</span>
+    </button>
+    <button type="button" class="tab" data-tab="timeline" aria-controls="tab-timeline">
+      <span class="tab-icon" aria-hidden="true">🕘</span><span class="tab-label">Timeline</span>
+    </button>
+    <button type="button" class="tab" data-tab="dieta" aria-controls="tab-dieta">
+      <span class="tab-icon" aria-hidden="true">🥗</span><span class="tab-label">Dieta</span>
+    </button>
+    <button type="button" class="tab" data-tab="resumen" aria-controls="tab-resumen">
+      <span class="tab-icon" aria-hidden="true">📊</span><span class="tab-label">Resumen</span>
+    </button>
+    <button type="button" class="tab" data-tab="ajustes" aria-controls="tab-ajustes">
+      <span class="tab-icon" aria-hidden="true">⚙️</span><span class="tab-label">Ajustes</span>
+    </button>
+  </nav>
 
   <div id="reminderBanner" class="reminder hidden" role="status" aria-live="polite">
     <p id="reminderText"></p>
@@ -48,8 +51,22 @@
   </div>
 
   <main>
+    <!-- ============ HOME ============ -->
+    <section id="tab-home" class="panel active" aria-labelledby="homeTitle">
+      <header class="home-head">
+        <h2 id="homeTitle"><span aria-hidden="true">👋</span> ¡Hola!</h2>
+        <p id="homeDate" class="home-date"></p>
+      </header>
+      <ol id="homeWeek" class="week" aria-label="Esta semana"></ol>
+      <div class="tip">
+        <span class="tip-icon" aria-hidden="true">💡</span>
+        <p id="homeTip"></p>
+      </div>
+      <div id="homeTiles" class="tiles" aria-label="Registro rápido"></div>
+    </section>
+
     <!-- ============ REGISTRAR ============ -->
-    <section id="tab-registrar" class="panel active">
+    <section id="tab-registrar" class="panel">
       <h2>¿Qué has comido?</h2>
 
       <div class="card">
@@ -80,7 +97,7 @@
 
         <div class="row">
           <button id="saveMealBtn" class="btn primary">Guardar comida</button>
-          <button id="analyzeBtn" class="btn">🤖 Analizar con IA</button>
+          <button id="analyzeBtn" class="btn brand">🤖 Analizar con IA</button>
         </div>
         <p class="hint">“Analizar con IA” usa tu clave (BYOK) para detectar posibles ingredientes.
           Sin clave funciona el análisis local por palabras clave. Con clave, el navegador solo habla
@@ -163,7 +180,8 @@
 
     <!-- ============ AJUSTES ============ -->
     <section id="tab-ajustes" class="panel">
-      <h2>Ajustes · Claves BYOK</h2>
+      <h2>Ajustes</h2>
+      <h3 class="section-title">🔑 Claves BYOK</h3>
       <p class="hint">Tus claves se guardan <strong>solo en el localStorage de este navegador</strong>.
         Nunca se commitean. Al analizar, viajan solo en la petición al proxy
         <code>/api/analyze</code> (misma app), que las reenvía al proveedor sin guardarlas ni registrarlas.
@@ -187,6 +205,14 @@
           <button id="testIaBtn" class="btn">Probar conexión</button>
         </div>
         <p id="providerMsg" class="hint" aria-live="polite"></p>
+      </div>
+      <div class="card">
+        <h3>🎨 Apariencia</h3>
+        <div class="segmented" role="radiogroup" aria-label="Tema">
+          <label><input type="radio" name="theme" value="system" /> <span>Sistema</span></label>
+          <label><input type="radio" name="theme" value="light" /> <span>☀️ Claro</span></label>
+          <label><input type="radio" name="theme" value="dark" /> <span>🌙 Oscuro</span></label>
+        </div>
       </div>
       <div class="card" id="reminderSettings">
         <h3>🔔 Recordatorio del diario</h3>
@@ -217,12 +243,12 @@
   </main>
 
   <!-- Diario de síntomas -->
-  <dialog id="diaryModal" class="modal" aria-labelledby="diaryTitle" closedby="any">
-    <header class="modal-head">
+  <dialog id="diaryModal" class="sheet" aria-labelledby="diaryTitle" closedby="any">
+    <header class="sheet-head">
       <h3 id="diaryTitle">¿Cómo te sientes?</h3>
       <p id="diaryCtx" class="hint"></p>
     </header>
-    <div class="modal-body">
+    <div class="sheet-body">
       <label class="field"><span>Cuéntalo con tus palabras</span>
         <textarea id="diaryText" rows="4" maxlength="1500"
           placeholder="Ej.: desde media tarde tengo la tripa hinchada y muchos gases…"></textarea></label>
@@ -240,7 +266,7 @@
         </div>
       </div>
     </div>
-    <footer class="modal-foot row">
+    <footer class="sheet-foot row">
       <button id="diarySave" class="btn primary">Guardar y buscar causas</button>
       <button id="diaryClose" class="btn ghost">Cancelar</button>
     </footer>
@@ -262,6 +288,7 @@
   <script src="js/providers.js"></script>
   <script src="js/diet.js"></script>
   <script src="js/diary.js"></script>
+  <script src="js/home.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
