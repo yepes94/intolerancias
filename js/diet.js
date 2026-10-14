@@ -113,9 +113,10 @@
   }
 
   /** Lo que viaja al proxy: solo el resumen, sin fotos ni ids. */
-  function contextPayload(sig, bowel) {
+  function contextPayload(sig, bowel, wellbeing) {
     return {
       ...(bowel ? { bowel } : {}),
+      ...(wellbeing ? { wellbeing } : {}),
       avoid: sig.avoid,
       suspects: sig.suspects.map((s) => ({ id: s.id, n: s.n, bad: s.bad, symptoms: s.symptoms })),
       recent: sig.recent,
@@ -160,8 +161,22 @@
     ]
   };
 
+  /** Consejos del plan local según ánimo y sueño de los últimos 7 días (IntolMoodSleep.dietContext). */
+  function wellbeingTips(w) {
+    const tips = [];
+    if (!w) return tips;
+    if (w.lowSleepDays >= 2 || (w.avgSleepH != null && w.avgSleepH < 6.5)) {
+      tips.push("Duermes poco últimamente" + (w.avgSleepH != null ? " (media " + String(w.avgSleepH).replace(".", ",") + " h)" : "") +
+        ": cena ligera y pronto, y cafeína solo por la mañana. Con poco sueño el cansancio y la pesadez se notan más.");
+    }
+    if (w.stressDays >= 2) {
+      tips.push("Esta semana has marcado estrés o ansiedad: come sin prisa, sin picante ni alcohol, y comidas sencillas.");
+    }
+    return tips;
+  }
+
   /** Plan de ejemplo sin IA (offline) que respeta las exclusiones. */
-  function localPlan(scope, slot, avoid) {
+  function localPlan(scope, slot, avoid, wellbeing) {
     const ex = avoid || [];
     const slots = scope === "day" ? SLOTS : [SLOTS.includes(slot) ? slot : "comida"];
     const meals = slots.map((s) => {
@@ -176,10 +191,10 @@
         ? "Plan sin " + labels.join(", ") + ", que coinciden con tus molestias registradas; comidas sencillas y ligeras."
         : "Sin señales claras en tus registros: plan equilibrado y ligero para tener una referencia.",
       meals,
-      tips: [
+      tips: wellbeingTips(wellbeing).concat([
         "Registra cómo te sientes 2 h después de cada comida.",
         "Mantén el resto igual (horarios, agua, sueño) para comparar mejor."
-      ],
+      ]),
       complete: true
     };
   }

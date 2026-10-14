@@ -125,6 +125,14 @@
           <button id="diaryOpenBtn" class="btn small primary">📝 Escribir en el diario</button>
         </div>
       </div>
+      <div class="card mood-card" id="moodCard">
+        <h3>😌 Ánimo y sueño <small>un toque y listo</small></h3>
+        <div class="feeling-row" id="moodQuick" role="group" aria-label="¿Cómo estás hoy?"></div>
+        <p id="moodQuickStatus" class="hint" aria-live="polite"></p>
+        <div class="row">
+          <button type="button" id="moodOpenBtn" class="btn small primary">😴 Sueño y etiquetas</button>
+        </div>
+      </div>
     </section>
 
     <!-- ============ TIMELINE ============ -->
@@ -173,6 +181,7 @@
       <h2>Resumen: qué te sienta bien / mal</h2>
       <p class="hint">Correlación simple y local: cruza tu diario con las comidas de las 24 h anteriores
         (o con la comida señalada como posible causa) y agrupa por ingrediente sospechoso.</p>
+      <div id="weekTrend" class="card trend" aria-live="polite"></div>
       <div id="suggestions" class="suggestions"></div>
       <div class="card" id="hydraCard">
         <h3>💧 Hidratación de hoy</h3>
@@ -289,6 +298,46 @@
     </footer>
   </dialog>
 
+  <!-- Ánimo y sueño -->
+  <dialog id="moodModal" class="modal" aria-labelledby="moodTitle" closedby="any">
+    <header class="modal-head">
+      <h3 id="moodTitle">Ánimo y sueño</h3>
+      <p id="moodSaved" class="hint" aria-live="polite">Se guarda al tocar.</p>
+    </header>
+    <div class="modal-body">
+      <fieldset class="field mood-day">
+        <legend>¿De qué día?</legend>
+        <div class="segmented" id="moodDayPick"></div>
+      </fieldset>
+      <div class="field">
+        <span id="moodLevelLabel">Ánimo <small>(toca otra vez para quitarlo)</small></span>
+        <div class="feeling-row" id="moodLevel" role="group" aria-labelledby="moodLevelLabel"></div>
+      </div>
+      <div class="field">
+        <span id="moodTagsLabel">¿Algo más? <small>(varias a la vez)</small></span>
+        <div class="chips" id="moodTags" role="group" aria-labelledby="moodTagsLabel"></div>
+      </div>
+      <div class="field">
+        <span id="sleepHoursLabel">Horas dormidas <small>(la noche anterior)</small></span>
+        <div class="chips" id="sleepPresets" role="group" aria-labelledby="sleepHoursLabel"></div>
+        <div class="sleep-stepper" role="group" aria-label="Ajustar horas dormidas">
+          <button type="button" id="sleepMinus" class="btn small" aria-label="Media hora menos">−</button>
+          <output id="sleepHoursOut" class="sleep-hours" for="sleepMinus sleepPlus">– h</output>
+          <button type="button" id="sleepPlus" class="btn small" aria-label="Media hora más">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <span id="sleepQualityLabel">Calidad del sueño <small>(1–5 · toca otra vez para quitarla)</small></span>
+        <div class="feeling-row" id="sleepQuality" role="group" aria-labelledby="sleepQualityLabel"></div>
+      </div>
+    </div>
+    <footer class="modal-foot row">
+      <button id="moodDone" class="btn primary">Listo</button>
+      <button id="moodDelete" class="btn ghost danger">Borrar este día</button>
+    </footer>
+  </dialog>
+
+
   <!-- Diario de síntomas -->
   <dialog id="diaryModal" class="sheet" aria-labelledby="diaryTitle" closedby="any">
     <header class="sheet-head">
@@ -335,6 +384,7 @@
   <script src="js/providers.js"></script>
   <script src="js/diet.js"></script>
   <script src="js/diary.js"></script>
+  <script src="js/features/mood-sleep.js"></script>
   <script src="js/home.js"></script>
   <script src="js/features/bowel.js"></script>
   <script src="js/features/bowel-ui.js"></script>
