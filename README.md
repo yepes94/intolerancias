@@ -59,6 +59,17 @@ vacío, banner en la app y aviso del sistema con la app abierta o en segundo pla
 (service worker `sw.js`, solo notificaciones, sin caché). Con la app cerrada no hay aviso
 (haría falta Web Push con servidor); al abrirla se ve el pendiente.
 
+## Deposiciones (escala de Bristol)
+
+Tile **💩 Deposición** del Home: elige el tipo 1–7 (ilustración + explicación corta:
+estreñimiento, normal, diarrea…), hora, nota opcional y marcas rápidas (dolor, urgencia,
+sangre → recomienda consultar). Se guarda en `localStorage` (`intol.bowel.v1`), sale en el
+timeline y en la exportación JSON (`bowel`) y se borra con «Borrar todo». Alimenta como
+señal digestiva el diario (`/api/diary` recibe las deposiciones de las 24 h anteriores; el
+análisis local también las usa), la dieta (`/api/diet` recibe un resumen de 14 días y
+las deposiciones anómalas cuentan como síntoma tras las comidas previas) y el Resumen
+muestra la distribución de tipos de 30 días.
+
 ## Dieta de prueba con IA
 
 Pestaña **🥗 Dieta**: pide un día completo (desayuno, comida, merienda, cena) o una sola
@@ -81,12 +92,14 @@ js/store.js         localStorage + IndexedDB + compresión de fotos
 js/providers.js     abstracción BYOK vía proxy /api/analyze (Claude y Groq reales, resto stubs)
 js/diet.js          dieta de prueba: señales, plan local, conflictos, comparación, lista de la compra (sin DOM)
 js/diary.js         diario: síntomas del texto, ventana 24 h, análisis local, migración, recordatorio (sin DOM)
+js/features/bowel.js     deposiciones: Bristol, señales para diario/dieta (sin DOM)
+js/features/bowel-ui.js  deposiciones: hoja de registro, tarjeta de timeline, reparto del Resumen
 js/app.js           UI, diario, recordatorio, timeline, dieta, resumen
 sw.js               service worker solo para notificaciones (sin caché)
 functions/api/analyze.js  proxy BYOK anti-CORS en Pages Functions (la key solo transita)
 functions/api/diet.js     proxy BYOK hermano para la dieta de prueba (misma taxonomía de errores)
 functions/api/diary.js    proxy BYOK del diario: posibles causas en las comidas de las 24 h anteriores
-tests/*.test.mjs          pruebas sin dependencias: node tests/diet.test.mjs (ídem diary, claude-thinking)
+tests/*.test.mjs          pruebas sin dependencias: node tests/diet.test.mjs (ídem diary, bowel, claude-thinking)
 docs/cloudflare.md  despliegue Pages + proxy BYOK
 docs/verificacion.md  plan de verificación manual
 ```

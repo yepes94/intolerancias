@@ -23,6 +23,16 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 - [ ] Teclado: `Tab` muestra foco visible en cada pestaña; la activa lleva `aria-current="page"`.
 - [ ] El final de página (pie) y el toast no quedan tapados por la barra.
 
+## 0b. Deposiciones (2 min)
+
+- [ ] Home → tile **💩 Deposición**: hoja con los 7 tipos (ilustración, nombre, categoría) y
+      explicación al elegir uno. Hora por defecto ahora, nota opcional, marcas Dolor/Urgencia/Sangre.
+- [ ] Con **Sangre** marcada aparece el aviso de consultar; al guardar se repite en el toast y la tarjeta.
+- [ ] Timeline: tarjeta «Deposición · tipo N» con categoría y marcas; Borrar la quita.
+- [ ] Resumen: «Deposiciones · 30 días» con barras por tipo y % normal/estreñimiento/blanda/diarrea.
+- [ ] Exportar JSON incluye `bowel`; **Borrar todo** vacía `intol.bowel.v1`.
+- [ ] Diario: tras una diarrea (tipo 6–7) reciente, el análisis local añade «Señal digestiva: …».
+
 ## 1. Registrar comida (2 min)
 
 - [ ] Pestaña **✍️ Registrar**: escribe “pizza con queso y cerveza”, marca 3/5 y pulsa **Guardar comida**.
