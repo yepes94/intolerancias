@@ -9,6 +9,7 @@
   const LS_SETTINGS = "intol.settings.v1";
   const LS_DIETS = "intol.diets.v1";
   const LS_DIARY = "intol.diary.v1";
+  const LS_DRINKS = "intol.drinks.v1";
   const LS_DIARY_MIGRATED = "intol.diary.migrated.v1";
   const LS_REMINDER = "intol.reminder.v1";
   const LS_BOWEL = "intol.bowel.v1";
@@ -104,6 +105,8 @@
     saveBowel(b) { save(LS_BOWEL, b); },
     getDiets() { return load(LS_DIETS, []); },
     saveDiets(d) { save(LS_DIETS, d); },
+    getDrinks() { return load(LS_DRINKS, []); },
+    saveDrinks(d) { save(LS_DRINKS, d); },
     getSettings() {
       const s = Object.assign(
         {
@@ -116,6 +119,9 @@
         load(LS_SETTINGS, {})
       );
       s.reminder = Object.assign({ enabled: true, time: "21:00" }, s.reminder);
+      // Objetivo diario de agua (ml): lo edita la tarjeta de hidratación del Resumen.
+      const g = Number(s.waterGoalMl);
+      s.waterGoalMl = g >= 250 && g <= 5000 ? Math.round(g) : 2000;
       // Antiguo modelo por defecto, retirado por Anthropic el 15-jun-2026.
       if (s.model === "claude-sonnet-4-20250514") s.model = window.IntolData.DEFAULT_MODEL;
       return s;
@@ -127,6 +133,7 @@
       localStorage.removeItem(LS_CHECKINS);
       localStorage.removeItem(LS_DIETS);
       localStorage.removeItem(LS_DIARY);
+      localStorage.removeItem(LS_DRINKS);
       localStorage.removeItem(LS_DIARY_MIGRATED);
       localStorage.removeItem(LS_REMINDER);
       localStorage.removeItem(LS_BOWEL);

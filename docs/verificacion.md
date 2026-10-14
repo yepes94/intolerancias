@@ -216,6 +216,20 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
       La clave antigua no se borra; **Exportar** incluye `diary` y `checkinsLegacy`.
 - [ ] **Móvil 375px**: sin scroll horizontal en el sheet del diario ni en el timeline.
 
+## 11. Bebidas e hidratación (3 min, sin clave real)
+
+- [ ] **Automático**: `node tests/drinks.test.mjs` → todo OK (catálogo y componentes,
+      cantidades, hidratación, diario/dieta, store, tile del Home).
+- [ ] **Registrar**: tarjeta 🥤 con 11 botones; cada uno abre cantidad (vaso/taza/ml)
+      y hora; al guardar aparece en el **Timeline** con sus pastillas
+      (p. ej. cerveza → `Alcohol` + `Gluten`) y se puede borrar.
+- [ ] **Resumen**: tarjeta 💧 con barra de agua del día, objetivo editable y
+      componentes aportados hoy por bebidas.
+- [ ] **Diario y dieta**: una entrada del diario con malestar tras un café cita la
+      bebida como posible causa; con ≥2 bebidas iguales y malestar, la dieta la excluye.
+- [ ] **Exportar** incluye `drinks` y `waterGoalMl`; **Borrar todo** limpia `intol.drinks.v1`.
+- [ ] **Móvil 375px**: sin scroll horizontal en la tarjeta, el diálogo ni el timeline.
+
 ## Criterio de aceptación
 
 Todo lo anterior en verde + `docs/verificacion.md` existe + sin claves en el repo

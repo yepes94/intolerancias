@@ -82,6 +82,20 @@ compartir o copiar. La respuesta de la IA no tiene tope propio de tokens. Los pl
 guardan en `localStorage` (`intol.diets.v1`); «Comí esto» y «Registrar cómo me siento»
 los enlazan con el diario para comparar con/sin plan. Sin clave hay plan local de ejemplo.
 
+## Bebidas
+
+Tarjeta **🥤 Bebidas** en Registrar: 11 botones rápidos (agua, café, té, leche,
+bebida vegetal, refresco, zumo, cerveza, vino, destilado y otra) con cantidad
+(vaso 250 ml, taza 200 ml, copa, chupito o ml libres) y hora. Cada tipo se mapea a
+los componentes de siempre (cafeína, lactosa, soja, fructosa, alcohol, gluten en
+la cerveza, histamina en el vino) y cuenta en el diario, la dieta y el Resumen.
+El **Resumen** muestra la hidratación del día (solo el agua suma) con objetivo
+configurable (2000 ml por defecto) y los componentes aportados por bebidas.
+Viven en `localStorage` (`intol.drinks.v1`), salen en el timeline y en la
+exportación, y se borran con «Borrar todo». La lógica pura está en
+`js/features/drinks.js`; cuando el Home del rediseño (`docs/diseno.md`) exista,
+el tile «Bebida» abre este mismo registro vía `IntolHome.registerTile`.
+
 ## Estructura
 
 ```text
@@ -94,7 +108,8 @@ js/diet.js          dieta de prueba: señales, plan local, conflictos, comparaci
 js/diary.js         diario: síntomas del texto, ventana 24 h, análisis local, migración, recordatorio (sin DOM)
 js/features/bowel.js     deposiciones: Bristol, señales para diario/dieta (sin DOM)
 js/features/bowel-ui.js  deposiciones: hoja de registro, tarjeta de timeline, reparto del Resumen
-js/app.js           UI, diario, recordatorio, timeline, dieta, resumen
+js/features/drinks.js bebidas: catálogo con componentes, hidratación, enganche al tile Bebida (sin DOM)
+js/app.js           UI, diario, bebidas, deposiciones, recordatorio, timeline, dieta, resumen
 sw.js               service worker solo para notificaciones (sin caché)
 functions/api/analyze.js  proxy BYOK anti-CORS en Pages Functions (la key solo transita)
 functions/api/diet.js     proxy BYOK hermano para la dieta de prueba (misma taxonomía de errores)
