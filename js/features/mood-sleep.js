@@ -251,10 +251,10 @@
     return out.sort((a, b) => b.rate - a.rate || b.withN - a.withN);
   }
 
-  /** Frase para sugerencias de dieta / resumen a partir de los factores detectados. */
+  /** Frase corta por factor detectado, para Resumen y Dieta. */
   function factorsText(fs) {
-    return fs.map((f) => "Los días con " + f.label + " tuviste malestar " + f.badWith + " de " + f.withN + " veces" +
-      " (" + Math.round(f.baseRate * 100) + "% el resto)").join("; ") + ".";
+    return fs.map((f) => "Con " + f.label + ": malestar " + f.badWith + " de " + f.withN + " días (sin ello, " +
+      Math.round(f.baseRate * 100) + "%)").join(" · ") + ".";
   }
 
   /** Datos para los tiles de la Home: timestamps de los registros. */

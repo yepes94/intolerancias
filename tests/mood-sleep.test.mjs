@@ -105,7 +105,7 @@ console.log("4. Contexto para la dieta y factores vs síntomas");
   const bad = new Set([D(1), D(2), D(5)]);
   const fs = MS.factors(r, bad);
   ok(fs.length >= 2 && fs[0].id === "pocoSueno" && fs[0].badWith === 3 && fs[0].withN === 3 && fs[0].baseRate === 0, "factores: poco sueño coincide con los 3 días de malestar", JSON.stringify(fs));
-  ok(/dormir poco tuviste malestar 3 de 3 veces/.test(MS.factorsText(fs)), "factorsText legible", MS.factorsText(fs));
+  ok(/Con dormir poco: malestar 3 de 3 días \(sin ello, 0%\)/.test(MS.factorsText(fs)), "factorsText legible", MS.factorsText(fs));
   ok(MS.factors(r, new Set([D(1)])).length === 0, "con <2 días de malestar no se afirma nada");
   ok(MS.factors(r, new Set([D(0), D(3), D(4)])).length === 0, "malestar en días sin factor → sin factores");
 
@@ -187,12 +187,12 @@ console.log("7. Integración en la app (comprobaciones estáticas de js/app.js e
 {
   const app = readFileSync(path.join(root, "js/app.js"), "utf8");
   const html = readFileSync(path.join(root, "index.html"), "utf8");
-  ok(/const data = \{ meals, diary, diets, moodSleep: moodRecs/.test(app), "la exportación JSON incluye moodSleep");
+  ok(/const data = \{ meals, diary, diets,.*moodSleep: moodRecs/.test(app), "la exportación JSON incluye moodSleep");
   ok(/moodRecs = \[\];/.test(app) && /S\.wipe\(\)/.test(app), "«Borrar todo» vacía el estado en memoria y el almacén");
   ok(/MS\.dayStart\(r\.day\)/.test(app) && /moodEntryCard/.test(app), "el timeline pinta los registros de ánimo y sueño");
   ok(/renderWeekTrend/.test(app) && /id="weekTrend"/.test(html), "el Resumen muestra la tendencia semanal");
   ok(/Diary\.payload\(e, meals, suspects, stools, wellbeing\)/.test(app) && /Diet\.contextPayload\(sig, Bowel\.contextPayload\(stools, Date\.now\(\)\), dietWellbeing\(\)\)/.test(app), "diario y dieta reciben el contexto");
-  ok(/X/.test(app), "se engancha como tile «Ánimo y sueño» si existe IntolHome");
+  ok(/Home\.registerTile\(\{\s*id: "animo"[\s\S]*?onOpen: \(\) => openMood\(\)/.test(app), "se engancha al Home como tile «Ánimo y sueño» (IntolHome.registerTile, mismo id que el placeholder)");
   ok(html.indexOf("js/features/mood-sleep.js") > html.indexOf("js/diary.js") && html.indexOf("js/features/mood-sleep.js") < html.indexOf("js/app.js"), "mood-sleep.js se carga antes de app.js");
 }
 

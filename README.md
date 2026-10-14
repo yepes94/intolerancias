@@ -70,6 +70,22 @@ análisis local también las usa), la dieta (`/api/diet` recibe un resumen de 14
 las deposiciones anómalas cuentan como síntoma tras las comidas previas) y el Resumen
 muestra la distribución de tipos de 30 días.
 
+## Ánimo y sueño
+
+Tile **Ánimo y sueño** del Home (y tarjeta en Registrar): un toque en una de las 5 caritas guarda
+el ánimo de hoy; un segundo toque en el sheet añade etiquetas (estrés, cansancio, ansiedad,
+tristeza, irritable, energía, calma, motivación), horas dormidas (4–9 h o con −/+ de media hora)
+y calidad del sueño 1–5. Todo se guarda al tocar, para «Hoy» o «Ayer», en `localStorage`
+(`intol.moodsleep.v1`, un registro por día). Sale en el timeline, en **Exportar datos** (`moodSleep`)
+y **Borrar todo** lo elimina.
+
+Alimenta al análisis como contexto, no como causa: el diario manda a `/api/diary` el ánimo y el
+sueño del día de la entrada (`wellbeing`) y la dieta manda a `/api/diet` el resumen de la última
+semana (`context.wellbeing`, con las coincidencias «poco sueño / estrés ↔ días con malestar»);
+sin IA, el análisis local del diario añade una línea de contexto y el plan local de la dieta
+consejos de sueño y estrés. **Resumen** muestra la tendencia de 7 días (ánimo, horas, calidad,
+etiquetas frecuentes y cambio frente a la semana anterior).
+
 ## Dieta de prueba con IA
 
 Pestaña **🥗 Dieta**: pide un día completo (desayuno, comida, merienda, cena) o una sola
@@ -109,7 +125,8 @@ js/diary.js         diario: síntomas del texto, ventana 24 h, análisis local, 
 js/features/bowel.js     deposiciones: Bristol, señales para diario/dieta (sin DOM)
 js/features/bowel-ui.js  deposiciones: hoja de registro, tarjeta de timeline, reparto del Resumen
 js/features/drinks.js bebidas: catálogo con componentes, hidratación, enganche al tile Bebida (sin DOM)
-js/app.js           UI, diario, bebidas, deposiciones, recordatorio, timeline, dieta, resumen
+js/features/mood-sleep.js  ánimo y sueño: registros, tendencia semanal, contexto para diario y dieta (sin DOM)
+js/app.js           UI, diario, bebidas, deposiciones, ánimo, recordatorio, timeline, dieta, resumen
 sw.js               service worker solo para notificaciones (sin caché)
 functions/api/analyze.js  proxy BYOK anti-CORS en Pages Functions (la key solo transita)
 functions/api/diet.js     proxy BYOK hermano para la dieta de prueba (misma taxonomía de errores)

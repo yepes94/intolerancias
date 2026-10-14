@@ -299,12 +299,12 @@
   </dialog>
 
   <!-- Ánimo y sueño -->
-  <dialog id="moodModal" class="modal" aria-labelledby="moodTitle" closedby="any">
-    <header class="modal-head">
+  <dialog id="moodModal" class="sheet" aria-labelledby="moodTitle" closedby="any">
+    <header class="sheet-head">
       <h3 id="moodTitle">Ánimo y sueño</h3>
       <p id="moodSaved" class="hint" aria-live="polite">Se guarda al tocar.</p>
     </header>
-    <div class="modal-body">
+    <div class="sheet-body">
       <fieldset class="field mood-day">
         <legend>¿De qué día?</legend>
         <div class="segmented" id="moodDayPick"></div>
@@ -331,7 +331,7 @@
         <div class="feeling-row" id="sleepQuality" role="group" aria-labelledby="sleepQualityLabel"></div>
       </div>
     </div>
-    <footer class="modal-foot row">
+    <footer class="sheet-foot row">
       <button id="moodDone" class="btn primary">Listo</button>
       <button id="moodDelete" class="btn ghost danger">Borrar este día</button>
     </footer>

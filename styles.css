@@ -438,21 +438,21 @@ ul.plain li:last-child { border-block-end: 0; }
 .sleep-hours {
   min-inline-size: 5rem;
   text-align: center;
-  font-size: var(--step-2, 1.5rem);
+  font-size: var(--text-xl);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-.mood-entry { border-inline-start: 4px solid var(--accent); }
-.pill.mood-sleep { background: var(--ia-subtle); color: color-mix(in oklch, var(--ia), var(--ink) 35%); }
-.pill.mood-pos { background: var(--brand-subtle); color: color-mix(in oklch, var(--brand), var(--ink) 30%); }
+.mood-entry::before { background: var(--sage); }
+.pill.mood-sleep,
+.pill.mood-pos { background: var(--sage-subtle); color: var(--on-sage); }
 
 .mood-context {
   margin: 0;
   padding: var(--space-xs) var(--space-s);
   border-radius: var(--radius-s);
   background: var(--accent-subtle);
-  font-size: var(--step--1);
+  font-size: var(--text-s);
 }
 
 .trend-days {
@@ -490,15 +490,15 @@ ul.plain li:last-child { border-block-end: 0; }
 .trend-bar {
   inline-size: 100%;
   border-radius: 999px;
-  background: var(--ia);
+  background: var(--sage);
 }
 
 .trend-bar.is-low { background: var(--accent); }
 .trend-hours { font-size: 0.8125rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .trend-wd { font-size: 0.75rem; color: var(--muted); }
 
-.trend-stats { display: flex; flex-direction: column; gap: 0.15rem; font-size: var(--step--1); }
+.trend-stats { display: flex; flex-direction: column; gap: 0.15rem; font-size: var(--text-s); }
 .trend-delta { font-weight: 600; font-variant-numeric: tabular-nums; }
-.trend-delta.is-up { color: var(--brand); }
+.trend-delta.is-up { color: var(--good); }
 .trend-delta.is-down { color: var(--bad); }
 

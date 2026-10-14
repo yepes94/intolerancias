@@ -1327,7 +1327,7 @@
     if (!$("moodModal").open) {
       lockScroll();
       $("moodModal").showModal();
-      $("moodModal").querySelector(".modal-body").scrollTop = 0;
+      $("moodModal").querySelector(".sheet-body").scrollTop = 0;
     }
   }
 
@@ -1457,7 +1457,8 @@
       "</ul>" +
       (w.tags.length ? "<div class='pills'>" + w.tags.slice(0, 5).map((t) => "<span class='pill src-sym'>" + esc(MS.tagLabel(t.id)) + " ×" + t.n + "</span>").join("") + "</div>" : "") +
       (w.prevLogged ? "" : "<p class='hint'>Los cambios aparecerán cuando tengas también la semana anterior.</p>") +
-      (facts.length ? "<p class='mood-context'>😴 " + esc(MS.factorsText(facts)) + " Puede pesar tanto como la comida.</p>" : "") +
+      (facts.length ? "<p class='mood-context'>😴 " + facts.map((f) => esc(MS.factorsText([f]))).join("<br>") +
+        "<br>Puede pesar tanto como la comida.</p>" : "") +
       "<div class='row'><button type='button' class='btn small' data-act='mood'>😌 Registrar hoy</button></div>";
     box.querySelector("[data-act='mood']").addEventListener("click", () => openMood());
   }
