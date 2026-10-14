@@ -1,0 +1,113 @@
+/* Intolerancias · css/tokens.css — sistema de diseño «Gutsy» (ver docs/diseno.md).
+   Solo variables y fuente: cualquier pantalla nueva debe usar estos tokens, no colores sueltos. */
+
+@font-face {
+  font-family: "Nunito";
+  src: url("../fonts/nunito-latin-wght.woff2") format("woff2-variations"),
+       url("../fonts/nunito-latin-wght.woff2") format("woff2");
+  font-weight: 200 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light dark;
+
+  /* ---- paleta base (no usar directamente en pantallas: usar los semánticos) ---- */
+  --palette-cream:      oklch(95.6% 0.014 85);   /* #f4f0e7 */
+  --palette-cream-2:    oklch(91.5% 0.02 88);    /* #e9e4d7 tiles */
+  --palette-yellow:     oklch(86.5% 0.135 92);   /* #f3d063 */
+  --palette-yellow-2:   oklch(78% 0.14 85);      /* mostaza */
+  --palette-sage:       oklch(84% 0.05 125);     /* #c7d3b1 */
+  --palette-sage-2:     oklch(62% 0.07 130);
+  --palette-ink:        oklch(24% 0.008 100);    /* #262622 */
+  --palette-ink-2:      oklch(19% 0.006 100);    /* barra inferior */
+  --palette-brown:      oklch(52% 0.09 50);      /* #9a5f40 */
+  --palette-brown-2:    oklch(64% 0.09 55);      /* #b9805b */
+  --palette-cocoa:      oklch(27% 0.06 40);      /* #3a170b */
+  --palette-red:        oklch(56% 0.16 30);
+
+  /* ---- semánticos (claro, oscuro) ---- */
+  --bg:          light-dark(var(--palette-cream), oklch(17.5% 0.006 100));
+  --surface:     light-dark(oklch(98.3% 0.008 88), oklch(22.5% 0.008 100));
+  --tile:        light-dark(var(--palette-cream-2), oklch(26.5% 0.01 100));
+  --sunken:      light-dark(oklch(93% 0.016 88), oklch(25% 0.008 100));
+  --field:       light-dark(oklch(99.5% 0.004 88), oklch(20% 0.006 100));
+  --ink:         light-dark(var(--palette-ink), oklch(94.5% 0.012 88));
+  --muted:       light-dark(oklch(48% 0.015 90), oklch(73% 0.014 90));
+  --line:        light-dark(oklch(88.5% 0.018 88), oklch(32% 0.01 100));
+
+  --brand:       var(--palette-yellow);                    /* amarillo de marca: acentos, hoy, consejos */
+  --on-brand:    var(--palette-ink);
+  --brand-subtle: light-dark(oklch(94% 0.06 92), oklch(32% 0.05 92));
+  --sage:        light-dark(var(--palette-sage), oklch(45% 0.05 128));
+  --on-sage:     light-dark(oklch(30% 0.04 128), oklch(94% 0.03 125));
+  --sage-subtle: light-dark(oklch(93% 0.03 125), oklch(28% 0.03 128));
+  --good:        light-dark(oklch(48% 0.08 135), oklch(80% 0.08 128));
+
+  --primary:     light-dark(var(--palette-ink), var(--palette-yellow));   /* botón píldora principal */
+  --on-primary:  light-dark(oklch(97% 0.01 88), var(--palette-ink));
+  --primary-hover: light-dark(oklch(32% 0.01 100), oklch(90% 0.12 92));
+
+  --accent:      var(--palette-brown-2);                   /* marrones: datos/gráficos */
+  --accent-subtle: light-dark(oklch(92% 0.03 60), oklch(30% 0.04 55));
+  --on-accent:   light-dark(oklch(35% 0.07 50), oklch(88% 0.05 60));
+  --bad:         light-dark(var(--palette-red), oklch(74% 0.13 30));
+  --bad-subtle:  light-dark(oklch(94% 0.03 30), oklch(30% 0.05 30));
+  --ia:          light-dark(oklch(50% 0.09 255), oklch(78% 0.08 255));
+  --ia-subtle:   light-dark(oklch(94% 0.02 255), oklch(28% 0.03 255));
+
+  --nav-bg:      var(--palette-ink-2);                     /* barra inferior: oscura en ambos modos */
+  --nav-ink:     oklch(72% 0.01 90);
+  --nav-ink-active: oklch(98% 0.005 90);
+
+  --focus:       light-dark(var(--palette-ink), var(--palette-yellow));
+
+  /* ---- tipografía ---- */
+  --font: "Nunito", ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", Quicksand, Comfortaa, "Arial Rounded MT", system-ui, sans-serif;
+  --text-xs: 0.8125rem;   /* 13 · etiquetas, barra */
+  --text-s:  0.9375rem;   /* 15 · secundario */
+  --text-m:  1.0625rem;   /* 17 · cuerpo */
+  --text-l:  1.3125rem;   /* 21 · títulos de tarjeta */
+  --text-xl: clamp(1.625rem, 1.3rem + 1.4vw, 2rem);      /* títulos de pantalla */
+  --text-2xl: clamp(2rem, 1.6rem + 1.8vw, 2.5rem);       /* saludo Home */
+  --weight-regular: 500;
+  --weight-bold: 750;
+  --weight-black: 850;
+
+  /* ---- espaciado (escala de 4 px) ---- */
+  --space-2xs: 0.25rem;
+  --space-xs:  0.5rem;
+  --space-s:   0.75rem;
+  --space-m:   1rem;
+  --space-l:   1.5rem;
+  --space-xl:  2rem;
+  --space-2xl: 3rem;
+
+  /* ---- radios ---- */
+  --radius-s:   0.75rem;   /* inputs, chips cuadrados */
+  --radius-m:   1.25rem;   /* tiles */
+  --radius-l:   1.75rem;   /* tarjetas */
+  --radius-xl:  2.25rem;   /* sheets */
+  --radius-pill: 999px;
+  --radius: var(--radius-l);
+
+  /* ---- sombras (suaves; en oscuro casi no se ven y se apoyan en --line) ---- */
+  --shadow-color: light-dark(oklch(40% 0.03 80 / 0.10), oklch(0% 0 none / 0.45));
+  --shadow-s: 0 1px 2px var(--shadow-color);
+  --shadow-m: 0 2px 4px var(--shadow-color), 0 10px 24px -12px var(--shadow-color);
+  --shadow-l: 0 24px 64px -16px oklch(0% 0 none / 0.35);
+
+  /* ---- movimiento ---- */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* ---- layout ---- */
+  --content-max: 40rem;
+  --nav-item-h: 3.5rem;
+  --nav-h: calc(var(--nav-item-h) + 0.75rem);
+}
+
+/* Tema forzado desde Ajustes (sin atributo = sigue al sistema). */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"]  { color-scheme: dark; }
