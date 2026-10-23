@@ -137,7 +137,14 @@
         entryId: e.id, doneAt: e.at, feeling: entryScore(e), symptoms: (e.symptoms || []).slice(),
         ...(e.dietId ? { dietId: e.dietId } : {})
       };
-      const ms = linkedMeals(e, meals);
+      // La ventana de Timeline da contexto, no una atribución: si el análisis
+      // local terminó sin causas, no convertir ese malestar en una asociación
+      // con todas las comidas de las 24 h. Se conserva la entrada sin mealId
+      // para el bienestar general; históricos explícitos e IA no cambian.
+      const noLocalMatch = !e.mealId && isBadEntry(e) && e.analysis &&
+        e.analysis.source === "local" && Array.isArray(e.analysis.causes) &&
+        e.analysis.causes.length === 0;
+      const ms = noLocalMatch ? [] : linkedMeals(e, meals);
       if (!ms.length) out.push({ ...base, mealId: null });
       for (const m of ms) out.push({ ...base, mealId: m.id });
     }
