@@ -1239,6 +1239,9 @@
 
   // ---------- ánimo y sueño ----------
   let moodDay = MS.dayKey(Date.now());
+  // Modal edits stay in memory until Guardar; every other exit discards them.
+  let moodDraft = null;
+  const moodDirtyDays = new Set();
 
   function badDaySet() {
     return new Set(diary.filter((e) => Diary.isBadEntry(e)).map((e) => Diary.dayKey(e.at)));
@@ -1303,7 +1306,7 @@
     $("moodQuickStatus").textContent = bits.length ? bits.join(" · ") : "¿Cómo estás hoy? Toca una carita.";
   }
 
-  function moodModalRecord() { return MS.forDay(moodRecs, moodDay); }
+  function moodModalRecord() { return MS.forDay(moodDraft || moodRecs, moodDay); }
 
   function renderMoodModal() {
     const r = moodModalRecord();
@@ -1340,17 +1343,20 @@
     const cur = r && r.sleep ? r.sleep : { hours: null, quality: null };
     return { sleep: { ...cur, ...change } };
   }
-  function savedNote() {
-    const d = new Date();
-    $("moodSaved").textContent = "Guardado ✔ " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  function modalSave(patch) {
+    moodDraft = MS.upsert(moodDraft, moodDay, patch, Date.now(), () => S.uid());
+    moodDirtyDays.add(moodDay);
+    $("moodSaved").textContent = "Cambios sin guardar.";
+    renderMoodModal();
   }
-  function modalSave(patch) { saveMood(moodDay, patch); savedNote(); }
 
   function openMood(day) {
     moodDay = day || MS.dayKey(Date.now());
-    $("moodSaved").textContent = "Se guarda al tocar.";
-    renderMoodModal();
     if (!$("moodModal").open) {
+      moodDraft = MS.normalize(moodRecs);
+      moodDirtyDays.clear();
+      $("moodSaved").textContent = "Guarda los cambios o cancela para salir sin guardar.";
+      renderMoodModal();
       lockScroll();
       $("moodModal").showModal();
       $("moodModal").querySelector(".sheet-body").scrollTop = 0;
@@ -1397,16 +1403,81 @@
     const v = Number(b.dataset.v);
     modalSave(sleepPatch({ quality: r && r.sleep && r.sleep.quality === v ? null : v }));
   }));
-  $("moodDone").addEventListener("click", () => $("moodModal").close());
-  $("moodDelete").addEventListener("click", () => {
-    if (!confirm("¿Borrar el ánimo y el sueño de este día?")) return;
-    moodRecs = MS.remove(moodRecs, moodDay);
-    S.saveMoodSleep(moodRecs);
-    afterMoodChange();
+  $("moodDone").addEventListener("click", () => {
+    if (moodDirtyDays.size) {
+      // Touch only edited days; untouched records keep their ids and timestamps.
+      for (const day of moodDirtyDays) {
+        const r = MS.forDay(moodDraft, day);
+        moodRecs = r ? MS.upsert(moodRecs, day, r, Date.now(), () => r.id) : MS.remove(moodRecs, day);
+      }
+      S.saveMoodSleep(moodRecs);
+      afterMoodChange();
+    }
     $("moodModal").close();
-    toast("Registro borrado");
   });
-  $("moodModal").addEventListener("close", unlockScroll);
+  for (const id of ["moodCancel", "moodClose"]) {
+    $(id).addEventListener("click", () => $("moodModal").close());
+  }
+  $("moodDelete").addEventListener("click", () => {
+    if (!confirm("¿Quitar el ánimo y el sueño de este día? Se aplicará al guardar.")) return;
+    moodDraft = MS.remove(moodDraft, moodDay);
+    moodDirtyDays.add(moodDay);
+    $("moodSaved").textContent = "Día quitado del borrador. Guarda para aplicar o cancela.";
+    renderMoodModal();
+  });
+  $("moodModal").addEventListener("cancel", (e) => {
+    e.preventDefault();
+    $("moodModal").close();
+  });
+  // Fallback for browsers without closedby="any"; never dismiss an inside click/drag.
+  let moodBackdropDown = false;
+  function outsideMood(e) {
+    const r = $("moodModal").getBoundingClientRect();
+    return e.target === $("moodModal") && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom);
+  }
+  $("moodModal").addEventListener("pointerdown", (e) => { moodBackdropDown = outsideMood(e); });
+  $("moodModal").addEventListener("click", (e) => {
+    if (moodBackdropDown && outsideMood(e)) $("moodModal").close();
+    moodBackdropDown = false;
+  });
+  // Only the mobile handle/header starts a swipe. Body scroll and controls stay native.
+  const moodHead = $("moodModal").querySelector(".sheet-head");
+  let moodSwipe = null;
+  function resetMoodSwipe() {
+    const active = moodSwipe;
+    moodSwipe = null;
+    if (active && moodHead.hasPointerCapture(active.id)) moodHead.releasePointerCapture(active.id);
+  }
+  moodHead.addEventListener("pointerdown", (e) => {
+    if (!e.isPrimary) { resetMoodSwipe(); return; }
+    if (!matchMedia("(width < 36rem)").matches || !["touch", "pen"].includes(e.pointerType) ||
+        e.target.closest("button, input, select, textarea, a, label, [contenteditable]")) return;
+    resetMoodSwipe();
+    moodSwipe = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    moodHead.setPointerCapture(e.pointerId);
+  });
+  moodHead.addEventListener("pointermove", (e) => {
+    if (!moodSwipe || e.pointerId !== moodSwipe.id) return;
+    const dx = e.clientX - moodSwipe.x;
+    const dy = e.clientY - moodSwipe.y;
+    // Once it becomes sideways or upward, this contact cannot dismiss later.
+    if (dy < -10 || (Math.abs(dx) > 10 && Math.abs(dx) > Math.max(0, dy))) resetMoodSwipe();
+  });
+  moodHead.addEventListener("pointerup", (e) => {
+    if (!moodSwipe || e.pointerId !== moodSwipe.id) return;
+    const dx = e.clientX - moodSwipe.x;
+    const dy = e.clientY - moodSwipe.y;
+    resetMoodSwipe();
+    if (dy >= 72 && dy > Math.abs(dx) * 1.5) $("moodModal").close();
+  });
+  moodHead.addEventListener("pointercancel", resetMoodSwipe);
+  moodHead.addEventListener("lostpointercapture", resetMoodSwipe);
+  $("moodModal").addEventListener("close", () => {
+    resetMoodSwipe();
+    moodDraft = null;
+    moodDirtyDays.clear();
+    unlockScroll();
+  });
   $("moodOpenBtn").addEventListener("click", () => openMood());
 
   function moodEntryCard(r) {

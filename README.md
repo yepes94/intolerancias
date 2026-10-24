@@ -75,7 +75,12 @@ muestra la distribución de tipos de 30 días.
 Tile **Ánimo y sueño** del Home (y tarjeta en Registrar): un toque en una de las 5 caritas guarda
 el ánimo de hoy; un segundo toque en el sheet añade etiquetas (estrés, cansancio, ansiedad,
 tristeza, irritable, energía, calma, motivación), horas dormidas (4–9 h o con −/+ de media hora)
-y calidad del sueño 1–5. Todo se guarda al tocar, para «Hoy» o «Ayer», en `localStorage`
+y calidad del sueño 1–5. En el formulario completo, los cambios de «Hoy» o «Ayer» quedan
+en un borrador hasta pulsar **Guardar**. **Cancelar**, ×, Escape o tocar fuera cierran sin
+guardar; los registros anteriores se conservan. En el sheet móvil (ancho menor de 36rem),
+un deslizamiento de al menos 72px hacia abajo desde la barrita o el encabezado también
+descarta el borrador; los campos y el cuerpo conservan su desplazamiento normal. El toque rápido de una carita en Registrar
+sigue guardándose al momento. Los datos se guardan en `localStorage`
 (`intol.moodsleep.v1`, un registro por día). Sale en el timeline, en **Exportar datos** (`moodSleep`)
 y **Borrar todo** lo elimina.
 
