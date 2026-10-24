@@ -276,13 +276,18 @@
     </section>
   </main>
 
-  <!-- Bebida: cantidad y hora -->
+  <!-- Bebida: tipo, cantidad y hora -->
   <dialog id="drinkModal" class="sheet" aria-labelledby="drinkTitle" closedby="any">
     <header class="sheet-head">
       <h3 id="drinkTitle">Registrar bebida</h3>
       <p id="drinkCtx" class="hint"></p>
     </header>
     <div class="sheet-body">
+      <div class="field">
+        <span id="drinkTypeLabel">Tipo de bebida</span>
+        <div id="drinkType" class="drink-grid drink-type-grid" role="group"
+          aria-labelledby="drinkTypeLabel" aria-describedby="drinkCtx"></div>
+      </div>
       <div class="field">
         <span id="drinkSizeLabel">Cantidad</span>
         <div class="segmented" id="drinkSize" role="group" aria-labelledby="drinkSizeLabel"></div>
