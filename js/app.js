@@ -617,15 +617,39 @@
     $("drinkMlField").classList.toggle("hidden", cur && cur.ml != null);
   }
 
+  function renderDrinkType() {
+    const t = Drinks.typeById(drinkType) || Drinks.typeById("otra");
+    $("drinkType").querySelectorAll("button").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.type === t.id));
+    });
+    $("drinkTitle").textContent = t.emoji + " " + t.label;
+    $("drinkCtx").textContent = t.components.length
+      ? "Cuenta como " + t.components.map((c) => D.ONSET_WINDOWS[c].label.toLowerCase()).join(", ") + " en tus análisis."
+      : (t.id === "agua" ? "Suma al objetivo diario de agua."
+        : "Se registra como bebida, sin componentes asignados; no suma al objetivo de agua.");
+  }
+
   function openDrink(typeId) {
     if (!Drinks) return;
     const t = Drinks.typeById(typeId) || Drinks.typeById("otra");
     drinkType = t.id;
     drinkSize = t.size;
-    $("drinkTitle").textContent = t.emoji + " " + t.label;
-    $("drinkCtx").textContent = t.components.length
-      ? "Cuenta como " + t.components.map((c) => D.ONSET_WINDOWS[c].label.toLowerCase()).join(", ") + " en tus análisis."
-      : "Solo suma hidratación: no aporta componentes a los análisis.";
+    const choices = $("drinkType");
+    choices.innerHTML = "";
+    for (const type of Drinks.TYPES) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "drink-btn";
+      button.dataset.type = type.id;
+      button.innerHTML = "<span aria-hidden='true'>" + type.emoji + "</span><span>" + esc(type.label) + "</span>";
+      button.addEventListener("click", () => {
+        drinkType = type.id;
+        // Cambiar el tipo conserva la cantidad y la hora que ya se hayan elegido.
+        renderDrinkType();
+      });
+      choices.appendChild(button);
+    }
+    renderDrinkType();
     renderDrinkSizes();
     const s = Drinks.sizeById(drinkSize);
     $("drinkMl").value = s && s.ml != null ? s.ml : 250;
@@ -663,7 +687,8 @@
       "<header class='meal-head'><span class='diary-icon' aria-hidden='true'>" + esc(m.emoji || "🥤") + "</span>" +
       "<div class='meal-title'><strong>" + esc(m.description || "Bebida") + "</strong>" +
       "<time datetime='" + new Date(m.createdAt).toISOString() + "'>" + fmtDT(m.createdAt) + "</time></div></header>" +
-      (ings ? "<div class='pills'>" + ings + "</div>" : "<p class='hint'>Solo hidrata.</p>");
+      (ings ? "<div class='pills'>" + ings + "</div>" : "<p class='hint'>" +
+        (m.type === "agua" ? "Suma al objetivo de agua." : "Sin componentes asignados.") + "</p>");
     const row = document.createElement("div");
     row.className = "row";
     const b2 = document.createElement("button");
@@ -860,12 +885,13 @@
     if (document.activeElement !== $("waterGoal")) $("waterGoal").value = h.goal;
     const day = Drinks.componentsOnDay(drinks, Date.now());
     const ids = Object.keys(day);
-    $("drinkDayList").innerHTML = ids.length
+    $("drinkDayList").innerHTML = "<p>Total de bebidas hoy: <strong>" +
+      Drinks.totalMl(drinks, Date.now()) + " ml</strong> (incluye el agua).</p>" + (ids.length
       ? "<p><strong>Componentes de hoy en bebidas:</strong></p><div class='pills'>" + ids.map((id) => {
         const w = D.ONSET_WINDOWS[id];
         return "<span class='pill src-drink'>" + esc(w ? w.label : id) + " ×" + day[id].n + "</span>";
       }).join("") + "</div>"
-      : "<p class='hint'>Hoy aún no hay bebidas con componentes.</p>";
+      : "<p class='hint'>Hoy aún no hay bebidas con componentes.</p>");
   }
 
   $("waterGoalBtn").addEventListener("click", () => {

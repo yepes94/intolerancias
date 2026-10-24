@@ -100,7 +100,12 @@
     return (drinks || []).filter((d) => dayKey(d.createdAt) === k);
   }
 
-  /** Solo el agua hidrata para el objetivo (el resto suma componentes, no ml). */
+  /** Volumen registrado de todas las bebidas, sin equivalencias de hidratación. */
+  function totalMl(drinks, ts) {
+    return drinksOnDay(drinks, ts).reduce((a, d) => a + (Number(d.ml) || 0), 0);
+  }
+
+  /** Solo los registros de agua suman al objetivo de agua. */
   function waterMl(drinks, ts) {
     return drinksOnDay(drinks, ts).reduce((a, d) => a + (d.type === "agua" ? (Number(d.ml) || 0) : 0), 0);
   }
@@ -147,7 +152,7 @@
   const api = {
     TYPES, SIZES, DEFAULT_GOAL_ML, MIN_ML, MAX_ML,
     typeById, sizeById, sanitizeGoal, dayKey, describe, makeDrink,
-    drinksOnDay, waterMl, hydration, componentsOnDay, registerHomeTile
+    drinksOnDay, totalMl, waterMl, hydration, componentsOnDay, registerHomeTile
   };
 
   if (typeof window !== "undefined" && window) window.IntolDrinks = api;

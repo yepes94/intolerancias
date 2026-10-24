@@ -65,6 +65,8 @@ console.log("3. Hidratación: solo el agua cuenta, objetivo configurable");
     Drinks.makeDrink({ type: "cafe", sizeId: "taza", at: NOW - H }),
     Drinks.makeDrink({ type: "agua", sizeId: "vaso", at: NOW - 30 * H })
   ];
+  ok(Drinks.totalMl(drinks, NOW) === 700, "total bebidas de hoy = 700 ml, incluye café y agua pero no ayer");
+  ok(Drinks.totalMl([], NOW) === 0, "sin bebidas → total 0 ml");
   ok(Drinks.waterMl(drinks, NOW) === 500, "2 vasos de hoy = 500 ml (café y ayer no cuentan)");
   const h = Drinks.hydration(drinks, 2000, NOW);
   ok(h.ml === 500 && h.goal === 2000 && h.pct === 25 && h.remaining === 1500, "hidratación 500/2000 = 25 %");
@@ -113,6 +115,17 @@ console.log("6. Store: persiste, exporta y se borra con «Borrar todo»");
   ok(S.getSettings().waterGoalMl === 2000, "objetivo de agua por defecto 2000 ml");
   S.saveDrinks([{ id: "d1" }]);
   ok(S.getDrinks().length === 1, "bebidas persisten en intol.drinks.v1");
+  const typed = Drinks.TYPES.map((t) => Drinks.makeDrink({ type: t.id, sizeId: t.size, at: NOW }));
+  const legacyWater = { id: "old-water", kind: "drink", type: "agua", ml: 250, createdAt: NOW, description: "Agua · vaso (250 ml)", ingredients: [] };
+  const unknown = { id: "unknown", kind: "drink", ml: 100, createdAt: NOW, description: "Registro antiguo", ingredients: [] };
+  const fixture = [legacyWater, unknown, ...typed];
+  S.saveDrinks(fixture);
+  ok(JSON.stringify(S.getDrinks()) === JSON.stringify(fixture), "los 11 tipos y registros antiguos persisten sin migración ni pérdidas");
+  const roundtrip = JSON.parse(JSON.stringify({ drinks: S.getDrinks() })).drinks;
+  ok(roundtrip.map((d) => d.type).slice(2).join() === Drinks.TYPES.map((t) => t.id).join(), "JSON conserva todos los tipos");
+  ok(roundtrip[0].type === "agua" && roundtrip[1].type === undefined, "agua histórica sigue agua; tipo ambiguo no se inventa");
+  ok(Drinks.waterMl([legacyWater, unknown], NOW) === 250 && Drinks.totalMl([legacyWater, unknown], NOW) === 350,
+    "registro ambiguo no se cuenta como agua");
   S.saveSettings({ ...S.getSettings(), waterGoalMl: 1500 });
   ok(S.getSettings().waterGoalMl === 1500, "objetivo configurable persiste");
   S.wipe();
