@@ -355,6 +355,8 @@ input[type="file"]::file-selector-button {
     border-end-end-radius: 0;
   }
   .sheet-head { padding: var(--space-l) var(--space-m) var(--space-2xs); }
+  /* Reserve only this non-scroll area for touch/pen dismissal, never the body. */
+  #moodModal .sheet-head { touch-action: none; }
   .sheet-head::before {
     content: "";
     display: block;
@@ -496,3 +498,15 @@ input[type="file"]::file-selector-button {
 .fab > span[aria-hidden] { font-size: 1.2em; line-height: 1; }
 .fab:active { scale: 0.97; }
 @media (width >= 48rem) { .fab { inset-block-end: calc(var(--nav-h) + var(--space-xl)); } }
+
+/* Always-visible, explicit exit for the mood/sleep sheet. */
+#moodModal .sheet-head { position: relative; padding-inline-end: 4.5rem; }
+#moodModal .mood-close {
+  position: absolute;
+  inset-block-start: var(--space-s);
+  inset-inline-end: var(--space-m);
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  padding: 0;
+  font-size: 1.6rem;
+}

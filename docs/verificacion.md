@@ -235,11 +235,21 @@ Abrir http://localhost:8080 en Chrome/Edge/Firefox.
 - [ ] **Automático**: `node tests/mood-sleep.test.mjs` → todo OK (registro por día, tendencia semanal,
       contexto para diario y dieta, factores, `/api/diary` y `/api/diet` con `wellbeing`, store y wipe).
 - [ ] **Uno o dos toques**: Home → tile **Ánimo y sueño** → toca una carita (queda guardado: «Guardado ✔»)
-      → toca etiquetas, horas (4–9 h o −/+) y calidad 1–5; cada toque se guarda al instante. En
-      Registrar, la tarjeta «Ánimo y sueño» guarda el ánimo de hoy con un solo toque.
+      → toca etiquetas, horas (4–9 h o −/+) y calidad 1–5 en el formulario completo; pulsa **Guardar**
+      para conservar el borrador. En Registrar, la tarjeta «Ánimo y sueño» sigue guardando el ánimo de hoy con un solo toque.
 - [ ] **Hoy / Ayer**: el sheet permite registrar el día anterior; tocar otra vez la misma opción la quita;
-      «Borrar este día» elimina el registro.
-- [ ] **Persistencia**: recarga → sigue ahí (`localStorage["intol.moodsleep.v1"]`); en el Home el día
+      «Borrar este día» lo quita del borrador; **Guardar** aplica la eliminación.
+- [ ] **Cancelar sin guardar**: abrir vacío y pulsar **Cancelar** o × no crea un registro. Cambiar ánimo,
+      etiquetas o sueño y cancelar (también con Escape o tocando fuera) conserva los datos anteriores,
+      incluso tras recargar. Cancelar una eliminación pendiente tampoco borra registros anteriores.
+- [ ] **Regresión de modal**: con servidor local en el puerto 8765, ejecutar
+      `uv run --with playwright python tests/mood-modal-browser.py` (requiere motores de Playwright instalados).
+- [ ] **Swipe móvil**: con ancho menor de 36rem, arrastrar hacia abajo al menos 72px desde la
+      barrita o encabezado descarta igual que Cancelar. Movimientos cortos, laterales o hacia arriba
+      no cierran; desplazar el cuerpo o empezar en un campo tampoco. Reabrir no recupera el borrador.
+- [ ] **Regresión táctil Chromium**: `uv run --with playwright python tests/mood-swipe-browser.py`
+      sirve su propia copia local; usa eventos táctiles CDP, no un teléfono físico.
+- [ ] **Persistencia**: guardar y recargar → sigue ahí (`localStorage["intol.moodsleep.v1"]`); en el Home el día
       queda marcado en la tira semanal.
 - [ ] **Timeline**: aparece la tarjeta «Ánimo y sueño» del día con ánimo, etiquetas y sueño, con ✏️ Editar y Borrar.
 - [ ] **Resumen**: «Tu semana · ánimo y sueño» con 7 días (cara + barra de horas), medias y cambio vs. la

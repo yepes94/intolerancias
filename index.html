@@ -306,8 +306,9 @@
   <!-- Ánimo y sueño -->
   <dialog id="moodModal" class="sheet" aria-labelledby="moodTitle" closedby="any">
     <header class="sheet-head">
+      <button type="button" id="moodClose" class="btn ghost mood-close" aria-label="Cancelar y cerrar ánimo y sueño">×</button>
       <h3 id="moodTitle">Ánimo y sueño</h3>
-      <p id="moodSaved" class="hint" aria-live="polite">Se guarda al tocar.</p>
+      <p id="moodSaved" class="hint" aria-live="polite">Guarda los cambios o cancela para salir sin guardar.</p>
     </header>
     <div class="sheet-body">
       <fieldset class="field mood-day">
@@ -337,7 +338,8 @@
       </div>
     </div>
     <footer class="sheet-foot row">
-      <button id="moodDone" class="btn primary">Listo</button>
+      <button type="button" id="moodDone" class="btn primary">Guardar</button>
+      <button type="button" id="moodCancel" class="btn ghost">Cancelar</button>
       <button id="moodDelete" class="btn ghost danger">Borrar este día</button>
     </footer>
   </dialog>
